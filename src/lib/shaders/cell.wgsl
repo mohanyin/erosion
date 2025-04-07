@@ -31,5 +31,5 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
   let c = input.state / {{MAX_HEIGHT}};
-  return vec4f(c, 1-c, 1-c, 1);
+  return vec4f(c,c, 1-c, 1);
 } 

@@ -1,4 +1,5 @@
 @group(0) @binding(0) var<uniform> grid: vec2f;
+@group(0) @binding(3) var<uniform> windDirection: vec2f;
 
 @group(0) @binding(1) var<storage> cellStateIn: array<f32>;
 @group(0) @binding(2) var<storage, read_write> cellStateOut: array<f32>;
@@ -12,18 +13,39 @@ fn getCellState(x: u32, y: u32) -> f32 {
   return cellStateIn[cellIndex(vec2(x, y))];
 }
 
+fn getMovedMaterial(x: u32, y: u32) -> f32 {
+  let state = getCellState(x, y);
+  let left = getCellState(x-1, y);
+  let right = getCellState(x+1, y);
+  let up = getCellState(x, y+1);
+  let down = getCellState(x, y-1);
+
+  let peakCoefficient = (4.0 * state - left - right - up - down) / 4.0;
+  return min(peakCoefficient / 2, 10);
+}
+
 @compute
 @workgroup_size({{WORKGROUP_SIZE}}, {{WORKGROUP_SIZE}})
 fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
-  let neighborHeightSum = getCellState(cell.x+1, cell.y+1) +
-                     getCellState(cell.x+1, cell.y) +
-                       getCellState(cell.x+1, cell.y-1) +
-                       getCellState(cell.x, cell.y-1) +
-                       getCellState(cell.x-1, cell.y-1) +
-                       getCellState(cell.x-1, cell.y) +
-                       getCellState(cell.x-1, cell.y+1) +
-                       getCellState(cell.x, cell.y+1);
+  let state = getCellState(cell.x, cell.y);
+  let removedMaterial = getMovedMaterial(cell.x, cell.y);
+  var addedMaterial = 0.0;
 
-  let i = cellIndex(cell.xy);
-  cellStateOut[i] = neighborHeightSum / 8.0;
+  let windNormalized = normalize(windDirection);
+  let windXAmount = abs(windNormalized.x);
+  let windYAmount = abs(windNormalized.y);
+
+  if (windDirection.x > 0.0) {
+    addedMaterial += windXAmount * getMovedMaterial(cell.x + 1, cell.y);
+  } else {
+    addedMaterial += windXAmount * getMovedMaterial(cell.x - 1, cell.y);
+  }
+
+  if (windDirection.y > 0.0) {
+    addedMaterial += windYAmount * getMovedMaterial(cell.x, cell.y + 1);
+  } else {
+    addedMaterial += windYAmount * getMovedMaterial(cell.x, cell.y - 1);
+  }
+
+  cellStateOut[cellIndex(cell.xy)] = clamp(state - removedMaterial + addedMaterial, 0.0, 1000.0);
 }

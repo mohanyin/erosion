@@ -6,24 +6,38 @@
 
   let canvas: HTMLCanvasElement;
 
-  const GRID_SIZE = 120;
-  const UPDATE_INTERVAL = 200; // Update every 200ms (5 times/sec)
+  const GRID_SIZE = 100;
+  const UPDATE_INTERVAL = 50;
   const WORKGROUP_SIZE = 8;
   const MAXIMUM_HEIGHT = 1000;
+  const WIND_DIRECTION_VARIABILITY = 0.4;
+
+  const Bindings = {
+    GridSize: 0,
+    CellStateA: 1,
+    CellStateB: 2,
+    WindDirection: 3,
+  } as const;
 
   let step = 0; // Track how many simulation steps have been run
   let updateInterval: number;
+  let windDirectionRad = Math.random() * 2 * Math.PI;
 
   onMount(async () => {
     const gpu = new GPU();
     await gpu.init();
     gpu.setupGPUCanvasRendering(canvas);
 
-    // Create a uniform buffer that describes the grid.
-    const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE]);
-    const uniformBuffer = gpu.createUniformBuffer({
-      data: uniformArray,
-      label: "Grid Uniforms",
+    const gridSize = new Float32Array([GRID_SIZE, GRID_SIZE]);
+    const gridSizeBuffer = gpu.createUniformBuffer({
+      data: gridSize,
+      label: "Grid Size",
+    });
+
+    const windDirection = new Float32Array([0.0, 1.0]);
+    const windDirectionBuffer = gpu.createUniformBuffer({
+      data: windDirection,
+      label: "Wind Direction",
     });
 
     const vertices = new Float32Array([
@@ -75,7 +89,6 @@
       cellStateArray[i] = Math.random() * MAXIMUM_HEIGHT;
     }
     gpu.device.queue.writeBuffer(cellStateStorage[0], 0, cellStateArray);
-    console.log(cellStateArray);
 
     const simulationShaderModule = gpu.createShaderModule(
       { code: simulationShader },
@@ -107,6 +120,11 @@
           binding: 2,
           visibility: GPUShaderStage.COMPUTE,
           buffer: { type: "storage" }, // Cell state output buffer
+        },
+        {
+          binding: 3,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "uniform" }, // Wind direction buffer
         },
       ],
     });
@@ -150,16 +168,20 @@
         layout: bindGroupLayout,
         entries: [
           {
-            binding: 0,
-            resource: { buffer: uniformBuffer },
+            binding: Bindings.GridSize,
+            resource: { buffer: gridSizeBuffer },
           },
           {
-            binding: 1,
+            binding: Bindings.CellStateA,
             resource: { buffer: cellStateStorage[0] },
           },
           {
-            binding: 2,
+            binding: Bindings.CellStateB,
             resource: { buffer: cellStateStorage[1] },
+          },
+          {
+            binding: Bindings.WindDirection,
+            resource: { buffer: windDirectionBuffer },
           },
         ],
       }),
@@ -168,22 +190,33 @@
         layout: bindGroupLayout,
         entries: [
           {
-            binding: 0,
-            resource: { buffer: uniformBuffer },
+            binding: Bindings.GridSize,
+            resource: { buffer: gridSizeBuffer },
           },
           {
-            binding: 1,
+            binding: Bindings.CellStateA,
             resource: { buffer: cellStateStorage[1] },
           },
           {
-            binding: 2,
+            binding: Bindings.CellStateB,
             resource: { buffer: cellStateStorage[0] },
+          },
+          {
+            binding: Bindings.WindDirection,
+            resource: { buffer: windDirectionBuffer },
           },
         ],
       }),
     ];
 
     function updateGrid() {
+      windDirectionRad += (Math.random() - 0.5) * WIND_DIRECTION_VARIABILITY;
+      const windDirection = new Float32Array([
+        Math.cos(windDirectionRad),
+        Math.sin(windDirectionRad),
+      ]);
+      gpu.device.queue.writeBuffer(windDirectionBuffer, 0, windDirection);
+
       const encoder = gpu.device.createCommandEncoder();
       const computePass = encoder.beginComputePass();
 
@@ -228,7 +261,8 @@
 
 <main>
   <canvas id="canvas" bind:this={canvas} width="720" height="720"></canvas>
-  <div>{step}</div>
+  <div>Step: {step}</div>
+  <div style="transform: rotate({windDirectionRad}rad);">{"->"}</div>
   <div>
     <button on:click={pause}>Pause</button>
   </div>
