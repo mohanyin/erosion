@@ -6,11 +6,13 @@
 
   let canvas: HTMLCanvasElement;
 
-  const GRID_SIZE = 1000;
+  const GRID_SIZE = 120;
   const UPDATE_INTERVAL = 200; // Update every 200ms (5 times/sec)
   const WORKGROUP_SIZE = 8;
+  const MAXIMUM_HEIGHT = 1000;
 
   let step = 0; // Track how many simulation steps have been run
+  let updateInterval: number;
 
   onMount(async () => {
     const gpu = new GPU();
@@ -26,19 +28,19 @@
 
     const vertices = new Float32Array([
       //   X,    Y,
-      -0.8,
-      -0.8, // Triangle 1 (Blue)
-      0.8,
-      -0.8,
-      0.8,
-      0.8,
+      -1,
+      -1, // Triangle 1 (Blue)
+      1,
+      -1,
+      1,
+      1,
 
-      -0.8,
-      -0.8, // Triangle 2 (Red)
-      0.8,
-      0.8,
-      -0.8,
-      0.8,
+      -1,
+      -1, // Triangle 2 (Red)
+      1,
+      1,
+      -1,
+      1,
     ]);
 
     const vertexBuffer = gpu.createVertexBuffer({
@@ -57,8 +59,7 @@
       ],
     };
 
-    const cellStateArray = new Uint32Array(GRID_SIZE * GRID_SIZE);
-    // Create two storage buffers to hold the cell state.
+    const cellStateArray = new Float32Array(GRID_SIZE * GRID_SIZE);
     const cellStateStorage = [
       gpu.createStorageBuffer({
         data: cellStateArray,
@@ -71,24 +72,22 @@
     ];
 
     for (let i = 0; i < cellStateArray.length; ++i) {
-      cellStateArray[i] = Math.random() > 0.6 ? 1 : 0;
+      cellStateArray[i] = Math.random() * MAXIMUM_HEIGHT;
     }
-    gpu.device!.queue.writeBuffer(cellStateStorage[0], 0, cellStateArray);
+    gpu.device.queue.writeBuffer(cellStateStorage[0], 0, cellStateArray);
+    console.log(cellStateArray);
 
     const simulationShaderModule = gpu.createShaderModule(
-      {
-        code: simulationShader,
-      },
-      {
-        WORKGROUP_SIZE: WORKGROUP_SIZE.toString(),
-      },
+      { code: simulationShader },
+      { WORKGROUP_SIZE: WORKGROUP_SIZE.toString() },
     );
 
-    const cellShaderModule = gpu.createShaderModule({
-      code: cellShader,
-    });
+    const cellShaderModule = gpu.createShaderModule(
+      { code: cellShader },
+      { MAX_HEIGHT: MAXIMUM_HEIGHT.toString() },
+    );
 
-    const bindGroupLayout = gpu.device!.createBindGroupLayout({
+    const bindGroupLayout = gpu.device.createBindGroupLayout({
       label: "Cell Bind Group Layout",
       entries: [
         {
@@ -112,12 +111,12 @@
       ],
     });
 
-    const pipelineLayout = gpu.device!.createPipelineLayout({
+    const pipelineLayout = gpu.device.createPipelineLayout({
       label: "Cell Pipeline Layout",
       bindGroupLayouts: [bindGroupLayout],
     });
 
-    const simulationPipeline = gpu.device!.createComputePipeline({
+    const simulationPipeline = gpu.device.createComputePipeline({
       label: "Simulation pipeline",
       layout: pipelineLayout,
       compute: {
@@ -126,7 +125,7 @@
       },
     });
 
-    const cellPipeline = gpu.device!.createRenderPipeline({
+    const cellPipeline = gpu.device.createRenderPipeline({
       label: "Cell pipeline",
       layout: pipelineLayout,
       vertex: {
@@ -146,7 +145,7 @@
     });
 
     const bindGroups = [
-      gpu.device!.createBindGroup({
+      gpu.device.createBindGroup({
         label: "Cell renderer bind group A",
         layout: bindGroupLayout,
         entries: [
@@ -164,7 +163,7 @@
           },
         ],
       }),
-      gpu.device!.createBindGroup({
+      gpu.device.createBindGroup({
         label: "Cell renderer bind group B",
         layout: bindGroupLayout,
         entries: [
@@ -185,7 +184,7 @@
     ];
 
     function updateGrid() {
-      const encoder = gpu.device!.createCommandEncoder();
+      const encoder = gpu.device.createCommandEncoder();
       const computePass = encoder.beginComputePass();
 
       computePass.setPipeline(simulationPipeline);
@@ -216,15 +215,23 @@
 
       // End the render pass and submit the command buffer
       pass.end();
-      gpu.device!.queue.submit([encoder.finish()]);
+      gpu.device.queue.submit([encoder.finish()]);
     }
 
-    setInterval(updateGrid, UPDATE_INTERVAL);
+    updateInterval = setInterval(updateGrid, UPDATE_INTERVAL);
   });
+
+  function pause() {
+    clearInterval(updateInterval);
+  }
 </script>
 
 <main>
-  <canvas id="canvas" bind:this={canvas}></canvas>
+  <canvas id="canvas" bind:this={canvas} width="720" height="720"></canvas>
+  <div>{step}</div>
+  <div>
+    <button on:click={pause}>Pause</button>
+  </div>
 </main>
 
 <style>
