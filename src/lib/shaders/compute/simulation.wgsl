@@ -1,8 +1,9 @@
-@group(0) @binding(0) var<uniform> grid: vec2f;
-@group(0) @binding(3) var<uniform> windDirection: vec2f;
+@group(0) @binding({{GridSize}}) var<uniform> grid: vec2f;
+@group(0) @binding({{WindDirection}}) var<uniform> windDirection: vec2f;
+@group(0) @binding({{WaterSourceLocation}}) var<uniform> waterSourceLocation: vec2i;
 
-@group(0) @binding(1) var<storage> cellStateIn: array<f32>;
-@group(0) @binding(2) var<storage, read_write> cellStateOut: array<f32>;
+@group(0) @binding({{CellStateA}}) var<storage> cellStateIn: array<f32>;
+@group(0) @binding({{CellStateB}}) var<storage, read_write> cellStateOut: array<f32>;
 
 fn cellIndex(cell: vec2u) -> u32 {
   return (cell.y % u32(grid.y)) * u32(grid.x) +

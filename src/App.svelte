@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { GPU } from "@/lib/services/web-gpu";
+  import Simulation from "@/lib/services/simulation";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import cellShader from "@/lib/shaders/cell.wgsl?raw";
 
@@ -17,20 +18,20 @@
     CellStateA: 1,
     CellStateB: 2,
     WindDirection: 3,
+    WaterSourceLocation: 4,
   } as const;
 
   let step = 0; // Track how many simulation steps have been run
   let updateInterval: number;
-  let windDirectionRad = Math.random() * 2 * Math.PI;
+  let windDirectionRad = Simulation.pickRandomDirection();
 
   onMount(async () => {
     const gpu = new GPU();
     await gpu.init();
     gpu.setupGPUCanvasRendering(canvas);
 
-    const gridSize = new Float32Array([GRID_SIZE, GRID_SIZE]);
     const gridSizeBuffer = gpu.createUniformBuffer({
-      data: gridSize,
+      data: new Float32Array([GRID_SIZE, GRID_SIZE]),
       label: "Grid Size",
     });
 
@@ -38,6 +39,11 @@
     const windDirectionBuffer = gpu.createUniformBuffer({
       data: windDirection,
       label: "Wind Direction",
+    });
+
+    const waterSourceLocationBuffer = gpu.createUniformBuffer({
+      data: Simulation.pickRandomPointOnEdge(GRID_SIZE),
+      label: "Water Source Location",
     });
 
     const vertices = new Float32Array([
@@ -92,39 +98,44 @@
 
     const simulationShaderModule = gpu.createShaderModule(
       { code: simulationShader },
-      { WORKGROUP_SIZE: WORKGROUP_SIZE.toString() },
+      { WORKGROUP_SIZE: WORKGROUP_SIZE.toString(), ...Bindings },
     );
 
     const cellShaderModule = gpu.createShaderModule(
       { code: cellShader },
-      { MAX_HEIGHT: MAXIMUM_HEIGHT.toString() },
+      { MAX_HEIGHT: MAXIMUM_HEIGHT.toString(), ...Bindings },
     );
 
     const bindGroupLayout = gpu.device.createBindGroupLayout({
       label: "Cell Bind Group Layout",
       entries: [
         {
-          binding: 0,
+          binding: Bindings.GridSize,
           visibility:
             GPUShaderStage.VERTEX |
             GPUShaderStage.COMPUTE |
             GPUShaderStage.FRAGMENT,
-          buffer: {}, // Grid uniform buffer
+          buffer: {},
         },
         {
-          binding: 1,
+          binding: Bindings.CellStateA,
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.COMPUTE,
-          buffer: { type: "read-only-storage" }, // Cell state input buffer
+          buffer: { type: "read-only-storage" },
         },
         {
-          binding: 2,
+          binding: Bindings.CellStateB,
           visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "storage" }, // Cell state output buffer
+          buffer: { type: "storage" },
         },
         {
-          binding: 3,
+          binding: Bindings.WindDirection,
           visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "uniform" }, // Wind direction buffer
+          buffer: { type: "uniform" },
+        },
+        {
+          binding: Bindings.WaterSourceLocation,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "uniform" },
         },
       ],
     });
@@ -183,6 +194,10 @@
             binding: Bindings.WindDirection,
             resource: { buffer: windDirectionBuffer },
           },
+          {
+            binding: Bindings.WaterSourceLocation,
+            resource: { buffer: waterSourceLocationBuffer },
+          },
         ],
       }),
       gpu.device.createBindGroup({
@@ -205,16 +220,20 @@
             binding: Bindings.WindDirection,
             resource: { buffer: windDirectionBuffer },
           },
+          {
+            binding: Bindings.WaterSourceLocation,
+            resource: { buffer: waterSourceLocationBuffer },
+          },
         ],
       }),
     ];
 
     function updateGrid() {
-      windDirectionRad += (Math.random() - 0.5) * WIND_DIRECTION_VARIABILITY;
-      const windDirection = new Float32Array([
-        Math.cos(windDirectionRad),
-        Math.sin(windDirectionRad),
-      ]);
+      windDirectionRad = Simulation.randomlyNudgeValue(
+        windDirectionRad,
+        WIND_DIRECTION_VARIABILITY,
+      );
+      const windDirection = Simulation.convertRadiansToVector(windDirectionRad);
       gpu.device.queue.writeBuffer(windDirectionBuffer, 0, windDirection);
 
       const encoder = gpu.device.createCommandEncoder();

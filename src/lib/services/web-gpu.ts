@@ -101,12 +101,12 @@ export class GPU {
 
   createShaderModule(
     options: GPUShaderModuleDescriptor,
-    interpolate?: Record<string, string>,
+    interpolate?: Record<string, string | number>,
   ) {
     let code = options.code;
     if (interpolate) {
       Object.entries(interpolate).forEach(([key, value]) => {
-        code = code.replaceAll(`{{${key}}}`, value);
+        code = code.replaceAll(`{{${key}}}`, value.toString());
       });
     }
     return this.device.createShaderModule({

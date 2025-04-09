@@ -9,8 +9,8 @@ struct VertexOutput {
   @location(1) state: f32,
 };
 
-@group(0) @binding(0) var<uniform> grid: vec2f;
-@group(0) @binding(1) var<storage> cellState: array<f32>;
+@group(0) @binding({{GridSize}}) var<uniform> grid: vec2f;
+@group(0) @binding({{CellStateA}}) var<storage> cellState: array<f32>;
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {
