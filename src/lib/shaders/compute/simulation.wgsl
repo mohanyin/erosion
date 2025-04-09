@@ -20,8 +20,8 @@ fn getMovedMaterial(x: u32, y: u32) -> f32 {
   let up = getCellState(x, y+1);
   let down = getCellState(x, y-1);
 
-  let peakCoefficient = (4.0 * state - left - right - up - down) / 4.0;
-  return min(peakCoefficient / 2, 10);
+  let localMaximaFactor = state - (left + right + up + down) / 4.0;
+  return clamp(localMaximaFactor / 2, 0.0, 10.0);
 }
 
 @compute
@@ -32,13 +32,13 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   var addedMaterial = 0.0;
 
   let windNormalized = normalize(windDirection);
-  let windXAmount = abs(windNormalized.x);
-  let windYAmount = abs(windNormalized.y);
+  let windXAmount = pow(abs(windNormalized.x), 2);
+  let windYAmount = pow(abs(windNormalized.y), 2);
 
   if (windDirection.x > 0.0) {
-    addedMaterial += windXAmount * getMovedMaterial(cell.x + 1, cell.y);
-  } else {
     addedMaterial += windXAmount * getMovedMaterial(cell.x - 1, cell.y);
+  } else {
+    addedMaterial += windXAmount * getMovedMaterial(cell.x + 1, cell.y);
   }
 
   if (windDirection.y > 0.0) {
