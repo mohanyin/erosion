@@ -19,6 +19,9 @@
     CellStateB: 2,
     WindDirection: 3,
     WaterSourceLocation: 4,
+    WaterSourceHeight: 5,
+    WaterStateA: 6,
+    WaterStateB: 7,
   } as const;
 
   let step = 0; // Track how many simulation steps have been run
@@ -41,8 +44,9 @@
       label: "Wind Direction",
     });
 
+    const waterSourceLocation = Simulation.pickRandomPointOnEdge(GRID_SIZE);
     const waterSourceLocationBuffer = gpu.createUniformBuffer({
-      data: Simulation.pickRandomPointOnEdge(GRID_SIZE),
+      data: waterSourceLocation,
       label: "Water Source Location",
     });
 
@@ -96,6 +100,26 @@
     }
     gpu.device.queue.writeBuffer(cellStateStorage[0], 0, cellStateArray);
 
+    const waterSourceIndex =
+      waterSourceLocation[0] + waterSourceLocation[1] * GRID_SIZE;
+    const waterSourceHeight = new Float32Array([300, 0]);
+    const waterSourceHeightBuffer = gpu.createUniformBuffer({
+      data: waterSourceHeight,
+      label: "Water Source Height",
+    });
+    const waterStateArray = new Int32Array(GRID_SIZE * GRID_SIZE);
+    waterStateArray[waterSourceIndex] = 1;
+    const waterStateStorage = [
+      gpu.createStorageBuffer({
+        data: waterStateArray,
+        label: "Water State A",
+      }),
+      gpu.createStorageBuffer({
+        data: waterStateArray,
+        label: "Water State B",
+      }),
+    ];
+
     const simulationShaderModule = gpu.createShaderModule(
       { code: simulationShader },
       { WORKGROUP_SIZE: WORKGROUP_SIZE.toString(), ...Bindings },
@@ -136,6 +160,21 @@
           binding: Bindings.WaterSourceLocation,
           visibility: GPUShaderStage.COMPUTE,
           buffer: { type: "uniform" },
+        },
+        {
+          binding: Bindings.WaterSourceHeight,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "uniform" },
+        },
+        {
+          binding: Bindings.WaterStateA,
+          visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
+          buffer: { type: "read-only-storage" },
+        },
+        {
+          binding: Bindings.WaterStateB,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "storage" },
         },
       ],
     });
@@ -198,6 +237,18 @@
             binding: Bindings.WaterSourceLocation,
             resource: { buffer: waterSourceLocationBuffer },
           },
+          {
+            binding: Bindings.WaterSourceHeight,
+            resource: { buffer: waterSourceHeightBuffer },
+          },
+          {
+            binding: Bindings.WaterStateA,
+            resource: { buffer: waterStateStorage[0] },
+          },
+          {
+            binding: Bindings.WaterStateB,
+            resource: { buffer: waterStateStorage[1] },
+          },
         ],
       }),
       gpu.device.createBindGroup({
@@ -223,6 +274,18 @@
           {
             binding: Bindings.WaterSourceLocation,
             resource: { buffer: waterSourceLocationBuffer },
+          },
+          {
+            binding: Bindings.WaterSourceHeight,
+            resource: { buffer: waterSourceHeightBuffer },
+          },
+          {
+            binding: Bindings.WaterStateA,
+            resource: { buffer: waterStateStorage[1] },
+          },
+          {
+            binding: Bindings.WaterStateB,
+            resource: { buffer: waterStateStorage[0] },
           },
         ],
       }),
