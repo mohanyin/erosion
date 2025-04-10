@@ -102,7 +102,7 @@
 
     const waterSourceIndex =
       waterSourceLocation[0] + waterSourceLocation[1] * GRID_SIZE;
-    const waterSourceHeight = new Float32Array([300, 0]);
+    let waterSourceHeight = new Float32Array([300, 0]);
     const waterSourceHeightBuffer = gpu.createUniformBuffer({
       data: waterSourceHeight,
       label: "Water Source Height",
@@ -298,6 +298,13 @@
       );
       const windDirection = Simulation.convertRadiansToVector(windDirectionRad);
       gpu.device.queue.writeBuffer(windDirectionBuffer, 0, windDirection);
+
+      waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2, 0]);
+      gpu.device.queue.writeBuffer(
+        waterSourceHeightBuffer,
+        0,
+        waterSourceHeight,
+      );
 
       const encoder = gpu.device.createCommandEncoder();
       const computePass = encoder.beginComputePass();
