@@ -34,6 +34,25 @@ export class Simulation {
       ]);
     }
   }
+
+  getVerticesForSquare() {
+    return new Float32Array([
+      //   X,    Y,
+      -1,
+      -1, // Triangle 1 (Blue)
+      1,
+      -1,
+      1,
+      1,
+
+      -1,
+      -1, // Triangle 2 (Red)
+      1,
+      1,
+      -1,
+      1,
+    ]);
+  }
 }
 
 export default new Simulation();

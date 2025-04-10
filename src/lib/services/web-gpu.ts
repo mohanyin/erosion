@@ -34,6 +34,11 @@ export class BaseGPU {
   }
 
   get format() {
+    if (!this._format) {
+      throw new Error(
+        "GPU format not initialized. Please call setupGPUCanvasRendering() first.",
+      );
+    }
     return this._format;
   }
 
@@ -174,6 +179,10 @@ export class GPU extends BaseGPU {
     return buffer;
   }
 
+  writeToBuffer(buffer: GPUBuffer, data: GPUAllowSharedBufferSource) {
+    this.device.queue.writeBuffer(buffer, 0, data);
+  }
+
   createShaderModule(
     options: GPUShaderModuleDescriptor,
     interpolate?: Record<string, string | number>,
@@ -188,5 +197,52 @@ export class GPU extends BaseGPU {
       ...options,
       code,
     });
+  }
+}
+
+export class SimulationGPU extends GPU {
+  computePipeline: GPUComputePipeline | null = null;
+  renderPipeline: GPURenderPipeline | null = null;
+
+  finalizePipelines({
+    label,
+    compute,
+    vertex,
+    fragment,
+  }: {
+    label: string;
+    compute: GPUProgrammableStage;
+    vertex: GPUVertexState;
+    fragment: GPUFragmentState;
+  }): { compute: GPUComputePipeline; render: GPURenderPipeline } {
+    if (this.computePipeline && this.renderPipeline) {
+      return { compute: this.computePipeline, render: this.renderPipeline };
+    }
+
+    const bindGroupLayout = this.device.createBindGroupLayout({
+      label: `${label} Bind Group Layout`,
+      entries: this.getBindGroupLayout(),
+    });
+    const pipelineLayout = this.device.createPipelineLayout({
+      label: `${label} Pipeline Layout`,
+      bindGroupLayouts: [bindGroupLayout],
+    });
+
+    const computePipeline = this.device.createComputePipeline({
+      label: `${label} Compute Pipeline`,
+      compute,
+      layout: pipelineLayout,
+    });
+    this.computePipeline = computePipeline;
+
+    const renderPipeline = this.device.createRenderPipeline({
+      label: `${label} Render Pipeline`,
+      layout: pipelineLayout,
+      vertex,
+      fragment,
+    });
+    this.renderPipeline = renderPipeline;
+
+    return { compute: computePipeline, render: renderPipeline };
   }
 }
