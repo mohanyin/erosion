@@ -1,4 +1,4 @@
-export class Simulation {
+export class Utils {
   /** Returns a random direction in radians */
   pickRandomDirection() {
     return Math.random() * 2 * Math.PI;
@@ -55,4 +55,4 @@ export class Simulation {
   }
 }
 
-export default new Simulation();
+export default new Utils();

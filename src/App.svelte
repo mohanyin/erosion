@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { SimulationGPU } from "@/lib/services/web-gpu";
-  import Simulation from "@/lib/services/simulation";
+  import Utils from "@/lib/services/utils";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import cellShader from "@/lib/shaders/cell.wgsl?raw";
 
@@ -25,12 +25,12 @@
   } as const;
 
   let step = $state(0);
-  let windDirectionRad = $state(Simulation.pickRandomDirection());
+  let windDirectionRad = $state(Utils.pickRandomDirection());
   let windDirectionBuffer: GPUBuffer | null = null;
   let waterSourceHeight = $state(new Float32Array([300]));
   let waterSourceHeightBuffer: GPUBuffer | null = null;
-  let waterSourceLocation = $state(Simulation.pickRandomPointOnEdge(GRID_SIZE));
-  let vertices = Simulation.getVerticesForSquare();
+  let waterSourceLocation = $state(Utils.pickRandomPointOnEdge(GRID_SIZE));
+  let vertices = Utils.getVerticesForSquare();
   let vertexBuffer: GPUBuffer | null = null;
 
   let updateInterval: number;
@@ -200,11 +200,11 @@
       return;
     }
 
-    windDirectionRad = Simulation.randomlyNudgeValue(
+    windDirectionRad = Utils.randomlyNudgeValue(
       windDirectionRad,
       WIND_DIRECTION_VARIABILITY,
     );
-    const windDirection = Simulation.convertRadiansToVector(windDirectionRad);
+    const windDirection = Utils.convertRadiansToVector(windDirectionRad);
     gpu.writeToBuffer(windDirectionBuffer!, windDirection);
 
     waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
