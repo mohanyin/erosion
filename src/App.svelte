@@ -4,25 +4,14 @@
   import Utils from "@/lib/services/utils";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import cellShader from "@/lib/shaders/cell.wgsl?raw";
+  import { Bindings, Simulation, GRID_SIZE } from "@/lib/services/simulation";
 
   let canvas: HTMLCanvasElement;
 
-  const GRID_SIZE = 100;
   const UPDATE_INTERVAL = 50;
   const WORKGROUP_SIZE = 8;
   const MAXIMUM_HEIGHT = 1000;
   const WIND_DIRECTION_VARIABILITY = 0.4;
-
-  const Bindings = {
-    GridSize: 0,
-    HeightStateA: 1,
-    HeightStateB: 2,
-    WindDirection: 3,
-    WaterSourceLocation: 4,
-    WaterSourceHeight: 5,
-    WaterStateA: 6,
-    WaterStateB: 7,
-  } as const;
 
   let step = $state(0);
   let windDirectionRad = $state(Utils.pickRandomDirection());
@@ -47,33 +36,13 @@
     await gpu.init();
     gpu.setupGPUCanvasRendering(canvas);
 
-    gpu.createUniformBuffer({
-      binding: Bindings.GridSize,
-      visibility:
-        GPUShaderStage.VERTEX |
-        GPUShaderStage.FRAGMENT |
-        GPUShaderStage.COMPUTE,
-      readonly: true,
-      data: new Float32Array([GRID_SIZE, GRID_SIZE]),
-      label: "Grid Size",
-    });
+    const simulation = new Simulation(gpu);
+    simulation.createGridSizeBuffer();
 
     const windDirection = new Float32Array([0.0, 1.0]);
-    windDirectionBuffer = gpu.createUniformBuffer({
-      binding: Bindings.WindDirection,
-      visibility: GPUShaderStage.COMPUTE,
-      readonly: true,
-      data: windDirection,
-      label: "Wind Direction",
-    });
+    windDirectionBuffer = simulation.createWindDirectionBuffer(windDirection);
 
-    gpu.createUniformBuffer({
-      binding: Bindings.WaterSourceLocation,
-      visibility: GPUShaderStage.COMPUTE,
-      readonly: true,
-      data: waterSourceLocation,
-      label: "Water Source Location",
-    });
+    simulation.createWaterSourceLocationBuffer(waterSourceLocation);
 
     vertexBuffer = gpu.createVertexBuffer({
       data: vertices,
@@ -88,56 +57,22 @@
     });
 
     const cellStateArray = new Float32Array(GRID_SIZE * GRID_SIZE);
-    const heightStateA = gpu.createStorageBuffer({
-      data: cellStateArray,
-      label: "Height State A",
-      binding: (step: number) =>
-        step % 2 === 0 ? Bindings.HeightStateA : Bindings.HeightStateB,
-      visibility: GPUShaderStage.VERTEX | GPUShaderStage.COMPUTE,
-      readonly: true,
-    });
-    gpu.createStorageBuffer({
-      data: cellStateArray,
-      label: "Height State B",
-      binding: (step: number) =>
-        step % 2 === 0 ? Bindings.HeightStateB : Bindings.HeightStateA,
-      visibility: GPUShaderStage.COMPUTE,
-      readonly: false,
-    });
+    const [heightStateA, _] =
+      simulation.createHeightStateBuffers(cellStateArray);
 
     for (let i = 0; i < cellStateArray.length; ++i) {
       cellStateArray[i] = Math.random() * MAXIMUM_HEIGHT;
     }
+    // todo just initialize this first?
     gpu.device.queue.writeBuffer(heightStateA, 0, cellStateArray);
 
-    waterSourceHeightBuffer = gpu.createUniformBuffer({
-      data: waterSourceHeight,
-      label: "Water Source Height",
-      binding: Bindings.WaterSourceHeight,
-      visibility: GPUShaderStage.COMPUTE,
-      readonly: true,
-    });
-
+    waterSourceHeightBuffer =
+      simulation.createWaterSourceHeightBuffer(waterSourceHeight);
     const waterSourceIndex =
       waterSourceLocation[0] + waterSourceLocation[1] * GRID_SIZE;
     const waterStateArray = new Int32Array(GRID_SIZE * GRID_SIZE);
     waterStateArray[waterSourceIndex] = 1;
-    gpu.createStorageBuffer({
-      data: waterStateArray,
-      label: "Water State A",
-      binding: (step: number) =>
-        step % 2 === 0 ? Bindings.WaterStateA : Bindings.WaterStateB,
-      visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-      readonly: true,
-    });
-    gpu.createStorageBuffer({
-      data: waterStateArray,
-      label: "Water State B",
-      binding: (step: number) =>
-        step % 2 === 0 ? Bindings.WaterStateB : Bindings.WaterStateA,
-      visibility: GPUShaderStage.COMPUTE,
-      readonly: false,
-    });
+    simulation.createWaterStateBuffers(waterStateArray);
 
     const simulationShaderModule = gpu.createShaderModule(
       { code: simulationShader },
