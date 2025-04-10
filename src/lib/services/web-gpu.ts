@@ -1,9 +1,4 @@
-interface CreateUsageSpecificBufferOptions<T extends ArrayBufferView> {
-  data: T;
-  label: string;
-}
-
-export class GPU {
+export class BaseGPU {
   private _device: GPUDevice | null = null;
   private _context: GPUCanvasContext | null = null;
   private _format: GPUTextureFormat | null = null;
@@ -53,50 +48,130 @@ export class GPU {
     }
     this._context.configure({ device: this.device, format: this._format });
   }
+}
 
-  createAndCopyBuffer<T extends ArrayBufferView>({
+interface DataBufferWithOptions {
+  buffer: GPUBuffer;
+  binding: GPUIndex32 | ((step: number) => GPUIndex32);
+  visibility: GPUShaderStageFlags;
+  readonly: boolean;
+  usage: GPUBufferUsageFlags;
+}
+
+interface CreateDataBufferOptions
+  extends Omit<DataBufferWithOptions, "buffer"> {
+  data: GPUAllowSharedBufferSource;
+  label: string;
+}
+
+type CreateSpecificDataBufferOptions = Omit<CreateDataBufferOptions, "usage">;
+
+interface CreateVertexBufferOptions {
+  data: Float32Array;
+  label: string;
+  attributes: GPUVertexAttribute[];
+}
+
+export class GPU extends BaseGPU {
+  private _buffers: Map<string, DataBufferWithOptions> = new Map();
+  private _vertexBuffers: Map<string, CreateVertexBufferOptions> = new Map();
+
+  private mapUsageToBufferType(
+    usage: GPUBufferUsageFlags,
+    readonly: boolean,
+  ): GPUBufferBindingLayout {
+    if (usage & GPUBufferUsage.UNIFORM) {
+      return { type: "uniform" };
+    } else if (usage & GPUBufferUsage.STORAGE && !readonly) {
+      return { type: "storage" };
+    } else if (usage & GPUBufferUsage.STORAGE && readonly) {
+      return { type: "read-only-storage" };
+    } else {
+      throw new Error("Unknown buffer usage");
+    }
+  }
+
+  getBindGroupLayout(step: number = 0): GPUBindGroupLayoutEntry[] {
+    return Array.from(this._buffers.values()).map((buffer) => {
+      const binding =
+        typeof buffer.binding === "function"
+          ? buffer.binding(step)
+          : buffer.binding;
+      return {
+        binding,
+        visibility: buffer.visibility,
+        buffer: this.mapUsageToBufferType(buffer.usage, buffer.readonly),
+      };
+    });
+  }
+
+  getBindGroupEntries(step: number = 0): GPUBindGroupEntry[] {
+    return Array.from(this._buffers.values()).map((buffer) => {
+      const binding =
+        typeof buffer.binding === "function"
+          ? buffer.binding(step)
+          : buffer.binding;
+      return {
+        binding,
+        resource: { buffer: buffer.buffer },
+      };
+    });
+  }
+
+  getVertexBufferLayout(): GPUVertexBufferLayout[] {
+    return Array.from(this._vertexBuffers.values()).map((buffer) => ({
+      arrayStride: 8,
+      attributes: buffer.attributes,
+    }));
+  }
+
+  createAndCopyBuffer({
+    binding,
+    visibility = GPUShaderStage.COMPUTE,
     data,
     label,
     usage,
-  }: {
-    data: T;
-    label: string;
-    usage: number;
-  }) {
+    readonly = false,
+  }: CreateDataBufferOptions) {
     const buffer = this.device.createBuffer({
       label,
       size: data.byteLength,
       usage,
     });
     this.device.queue.writeBuffer(buffer, 0, data);
+    this._buffers.set(label, {
+      binding,
+      visibility,
+      readonly,
+      buffer,
+      usage,
+    });
     return buffer;
   }
 
-  createUniformBuffer<T extends ArrayBufferView>(
-    options: CreateUsageSpecificBufferOptions<T>,
-  ) {
+  createUniformBuffer(options: CreateSpecificDataBufferOptions) {
     return this.createAndCopyBuffer({
       ...options,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
   }
 
-  createStorageBuffer<T extends ArrayBufferView>(
-    options: CreateUsageSpecificBufferOptions<T>,
-  ) {
+  createStorageBuffer(options: CreateSpecificDataBufferOptions) {
     return this.createAndCopyBuffer({
       ...options,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
   }
 
-  createVertexBuffer<T extends ArrayBufferView>(
-    options: CreateUsageSpecificBufferOptions<T>,
-  ) {
-    return this.createAndCopyBuffer({
-      ...options,
+  createVertexBuffer({ label, data, attributes }: CreateVertexBufferOptions) {
+    const buffer = this.device.createBuffer({
+      label,
+      size: data.byteLength,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
+    this.device.queue.writeBuffer(buffer, 0, data);
+    this._vertexBuffers.set(label, { label, data, attributes });
+    return buffer;
   }
 
   createShaderModule(

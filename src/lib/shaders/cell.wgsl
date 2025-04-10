@@ -11,7 +11,7 @@ struct VertexOutput {
 };
 
 @group(0) @binding({{GridSize}}) var<uniform> grid: vec2f;
-@group(0) @binding({{CellStateA}}) var<storage> cellState: array<f32>;
+@group(0) @binding({{HeightStateA}}) var<storage> heightState: array<f32>;
 @group(0) @binding({{WaterStateA}}) var<storage> waterState: array<i32>;
 
 @vertex
@@ -26,7 +26,7 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
   output.cell = cell;
   output.instance = input.instance;
 
-  let state = cellState[input.instance];
+  let state = heightState[input.instance];
   output.state = state;
   return output;
 }

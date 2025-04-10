@@ -15,8 +15,8 @@
 
   const Bindings = {
     GridSize: 0,
-    CellStateA: 1,
-    CellStateB: 2,
+    HeightStateA: 1,
+    HeightStateB: 2,
     WindDirection: 3,
     WaterSourceLocation: 4,
     WaterSourceHeight: 5,
@@ -34,18 +34,30 @@
     gpu.setupGPUCanvasRendering(canvas);
 
     const gridSizeBuffer = gpu.createUniformBuffer({
+      binding: Bindings.GridSize,
+      visibility:
+        GPUShaderStage.VERTEX |
+        GPUShaderStage.FRAGMENT |
+        GPUShaderStage.COMPUTE,
+      readonly: true,
       data: new Float32Array([GRID_SIZE, GRID_SIZE]),
       label: "Grid Size",
     });
 
     const windDirection = new Float32Array([0.0, 1.0]);
     const windDirectionBuffer = gpu.createUniformBuffer({
+      binding: Bindings.WindDirection,
+      visibility: GPUShaderStage.COMPUTE,
+      readonly: true,
       data: windDirection,
       label: "Wind Direction",
     });
 
     const waterSourceLocation = Simulation.pickRandomPointOnEdge(GRID_SIZE);
     const waterSourceLocationBuffer = gpu.createUniformBuffer({
+      binding: Bindings.WaterSourceLocation,
+      visibility: GPUShaderStage.COMPUTE,
+      readonly: true,
       data: waterSourceLocation,
       label: "Water Source Location",
     });
@@ -70,28 +82,32 @@
     const vertexBuffer = gpu.createVertexBuffer({
       data: vertices,
       label: "Cell vertices",
-    });
-
-    const vertexBufferLayout: GPUVertexBufferLayout = {
-      arrayStride: 8,
       attributes: [
         {
           format: "float32x2" as GPUVertexFormat,
           offset: 0,
-          shaderLocation: 0, // Position, see vertex shader
+          shaderLocation: 0,
         },
       ],
-    };
+    });
 
     const cellStateArray = new Float32Array(GRID_SIZE * GRID_SIZE);
     const cellStateStorage = [
       gpu.createStorageBuffer({
         data: cellStateArray,
-        label: "Cell State A",
+        label: "Height State A",
+        binding: (step: number) =>
+          step % 2 === 0 ? Bindings.HeightStateA : Bindings.HeightStateB,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.COMPUTE,
+        readonly: true,
       }),
       gpu.createStorageBuffer({
         data: cellStateArray,
-        label: "Cell State B",
+        label: "Height State B",
+        binding: (step: number) =>
+          step % 2 === 0 ? Bindings.HeightStateB : Bindings.HeightStateA,
+        visibility: GPUShaderStage.COMPUTE,
+        readonly: false,
       }),
     ];
 
@@ -102,23 +118,32 @@
 
     const waterSourceIndex =
       waterSourceLocation[0] + waterSourceLocation[1] * GRID_SIZE;
-    let waterSourceHeight = new Float32Array([300, 0]);
+    let waterSourceHeight = new Float32Array([300]);
     const waterSourceHeightBuffer = gpu.createUniformBuffer({
       data: waterSourceHeight,
       label: "Water Source Height",
+      binding: Bindings.WaterSourceHeight,
+      visibility: GPUShaderStage.COMPUTE,
+      readonly: true,
     });
     const waterStateArray = new Int32Array(GRID_SIZE * GRID_SIZE);
     waterStateArray[waterSourceIndex] = 1;
-    const waterStateStorage = [
-      gpu.createStorageBuffer({
-        data: waterStateArray,
-        label: "Water State A",
-      }),
-      gpu.createStorageBuffer({
-        data: waterStateArray,
-        label: "Water State B",
-      }),
-    ];
+    gpu.createStorageBuffer({
+      data: waterStateArray,
+      label: "Water State A",
+      binding: (step: number) =>
+        step % 2 === 0 ? Bindings.WaterStateA : Bindings.WaterStateB,
+      visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
+      readonly: true,
+    });
+    gpu.createStorageBuffer({
+      data: waterStateArray,
+      label: "Water State B",
+      binding: (step: number) =>
+        step % 2 === 0 ? Bindings.WaterStateB : Bindings.WaterStateA,
+      visibility: GPUShaderStage.COMPUTE,
+      readonly: false,
+    });
 
     const simulationShaderModule = gpu.createShaderModule(
       { code: simulationShader },
@@ -132,51 +157,7 @@
 
     const bindGroupLayout = gpu.device.createBindGroupLayout({
       label: "Cell Bind Group Layout",
-      entries: [
-        {
-          binding: Bindings.GridSize,
-          visibility:
-            GPUShaderStage.VERTEX |
-            GPUShaderStage.COMPUTE |
-            GPUShaderStage.FRAGMENT,
-          buffer: {},
-        },
-        {
-          binding: Bindings.CellStateA,
-          visibility: GPUShaderStage.VERTEX | GPUShaderStage.COMPUTE,
-          buffer: { type: "read-only-storage" },
-        },
-        {
-          binding: Bindings.CellStateB,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "storage" },
-        },
-        {
-          binding: Bindings.WindDirection,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "uniform" },
-        },
-        {
-          binding: Bindings.WaterSourceLocation,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "uniform" },
-        },
-        {
-          binding: Bindings.WaterSourceHeight,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "uniform" },
-        },
-        {
-          binding: Bindings.WaterStateA,
-          visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-          buffer: { type: "read-only-storage" },
-        },
-        {
-          binding: Bindings.WaterStateB,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "storage" },
-        },
-      ],
+      entries: gpu.getBindGroupLayout(),
     });
 
     const pipelineLayout = gpu.device.createPipelineLayout({
@@ -199,7 +180,7 @@
       vertex: {
         module: cellShaderModule,
         entryPoint: "vertexMain",
-        buffers: [vertexBufferLayout],
+        buffers: gpu.getVertexBufferLayout(),
       },
       fragment: {
         module: cellShaderModule,
@@ -216,78 +197,12 @@
       gpu.device.createBindGroup({
         label: "Cell renderer bind group A",
         layout: bindGroupLayout,
-        entries: [
-          {
-            binding: Bindings.GridSize,
-            resource: { buffer: gridSizeBuffer },
-          },
-          {
-            binding: Bindings.CellStateA,
-            resource: { buffer: cellStateStorage[0] },
-          },
-          {
-            binding: Bindings.CellStateB,
-            resource: { buffer: cellStateStorage[1] },
-          },
-          {
-            binding: Bindings.WindDirection,
-            resource: { buffer: windDirectionBuffer },
-          },
-          {
-            binding: Bindings.WaterSourceLocation,
-            resource: { buffer: waterSourceLocationBuffer },
-          },
-          {
-            binding: Bindings.WaterSourceHeight,
-            resource: { buffer: waterSourceHeightBuffer },
-          },
-          {
-            binding: Bindings.WaterStateA,
-            resource: { buffer: waterStateStorage[0] },
-          },
-          {
-            binding: Bindings.WaterStateB,
-            resource: { buffer: waterStateStorage[1] },
-          },
-        ],
+        entries: gpu.getBindGroupEntries(0),
       }),
       gpu.device.createBindGroup({
         label: "Cell renderer bind group B",
         layout: bindGroupLayout,
-        entries: [
-          {
-            binding: Bindings.GridSize,
-            resource: { buffer: gridSizeBuffer },
-          },
-          {
-            binding: Bindings.CellStateA,
-            resource: { buffer: cellStateStorage[1] },
-          },
-          {
-            binding: Bindings.CellStateB,
-            resource: { buffer: cellStateStorage[0] },
-          },
-          {
-            binding: Bindings.WindDirection,
-            resource: { buffer: windDirectionBuffer },
-          },
-          {
-            binding: Bindings.WaterSourceLocation,
-            resource: { buffer: waterSourceLocationBuffer },
-          },
-          {
-            binding: Bindings.WaterSourceHeight,
-            resource: { buffer: waterSourceHeightBuffer },
-          },
-          {
-            binding: Bindings.WaterStateA,
-            resource: { buffer: waterStateStorage[1] },
-          },
-          {
-            binding: Bindings.WaterStateB,
-            resource: { buffer: waterStateStorage[0] },
-          },
-        ],
+        entries: gpu.getBindGroupEntries(1),
       }),
     ];
 
@@ -299,7 +214,7 @@
       const windDirection = Simulation.convertRadiansToVector(windDirectionRad);
       gpu.device.queue.writeBuffer(windDirectionBuffer, 0, windDirection);
 
-      waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2, 0]);
+      waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
       gpu.device.queue.writeBuffer(
         waterSourceHeightBuffer,
         0,
