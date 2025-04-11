@@ -5,14 +5,14 @@
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import cellShader from "@/lib/shaders/cell.wgsl?raw";
   import { Bindings, Simulation, GRID_SIZE } from "@/lib/services/simulation";
-
-  let canvas: HTMLCanvasElement;
+  import Canvas from "@/lib/components/Canvas.svelte";
 
   const UPDATE_INTERVAL = 50;
   const WORKGROUP_SIZE = 8;
   const MAXIMUM_HEIGHT = 1000;
   const WIND_DIRECTION_VARIABILITY = 0.4;
 
+  let canvas: HTMLCanvasElement | null = $state(null);
   let step = $state(0);
   let windDirectionRad = $state(Utils.pickRandomDirection());
   let windDirectionBuffer: GPUBuffer | null = null;
@@ -22,9 +22,12 @@
   let vertices = Utils.getVerticesForSquare();
   let vertexBuffer: GPUBuffer | null = null;
 
+  let brushLocation: Float32Array | null = $state(null);
+  let brushLocationBuffer: GPUBuffer | null = null;
+
   let updateInterval: number;
 
-  let gpu: SimulationGPU | null = null;
+  let gpu: SimulationGPU | null = $state(null);
 
   onMount(async () => {
     await setupSimulation();
@@ -34,7 +37,7 @@
   async function setupSimulation(): Promise<SimulationGPU> {
     gpu = new SimulationGPU();
     await gpu.init();
-    gpu.setupGPUCanvasRendering(canvas);
+    gpu.setupGPUCanvasRendering(canvas!);
 
     const simulation = new Simulation(gpu);
     simulation.createGridSizeBuffer();
@@ -186,12 +189,21 @@
   function start() {
     updateInterval = setInterval(updateGrid, UPDATE_INTERVAL);
   }
+
+  function onBrushMove(location: Float32Array | null) {
+    brushLocation = location;
+  }
 </script>
 
 <main>
-  <canvas id="canvas" bind:this={canvas} width="720" height="720"></canvas>
+  <Canvas {onBrushMove} bind:canvas></Canvas>
   <div>Step: {step}</div>
-  <div style="transform: rotate({windDirectionRad}rad);">{"->"}</div>
+  <div style="transform: rotate({windDirectionRad}rad);" class="wind-direction">
+    {"->"}
+  </div>
+  {#if brushLocation}
+    <div>Brush location: {brushLocation[0]}, {brushLocation[1]}</div>
+  {/if}
   <div>
     <button onclick={pause}>Pause</button>
     <button onclick={start}>Play</button>
@@ -199,4 +211,7 @@
 </main>
 
 <style>
+  .wind-direction {
+    display: inline-block;
+  }
 </style>
