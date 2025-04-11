@@ -36,10 +36,7 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
   let c = input.state / {{MAX_HEIGHT}};
   let water = waterState[input.instance];
-  let distanceToBrush = distance(input.cell, brushLocation - 0.5);
-  if (distanceToBrush < 0.707) {
-    return vec4f(0, 0, 0, 1);
-  } else if (water == 1) {
+  if (water == 1) {
     return vec4f(c, 1 - c, 1, 1);
   } else {
     return vec4f(c, c, c, 1);

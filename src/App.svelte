@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { SimulationGPU } from "@/lib/services/web-gpu";
-  import Utils from "@/lib/services/utils";
+  import Utils, { throttle } from "@/lib/services/utils";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import cellShader from "@/lib/shaders/cell.wgsl?raw";
   import { Bindings, Simulation, GRID_SIZE } from "@/lib/services/simulation";
@@ -25,13 +25,11 @@
   let brushLocation: Float32Array = $state(new Float32Array([-1, -1]));
   let brushLocationBuffer: GPUBuffer | null = null;
 
-  let updateInterval: number;
-
   let gpu: SimulationGPU | null = $state(null);
 
   onMount(async () => {
     await setupSimulation();
-    start();
+    isPlaying = true;
   });
 
   async function setupSimulation(): Promise<SimulationGPU> {
@@ -153,8 +151,8 @@
     const windDirection = Utils.convertRadiansToVector(windDirectionRad);
     gpu.writeToBuffer(windDirectionBuffer!, windDirection);
 
-    waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
-    gpu.writeToBuffer(waterSourceHeightBuffer!, waterSourceHeight);
+    // waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
+    // gpu.writeToBuffer(waterSourceHeightBuffer!, waterSourceHeight);
 
     const encoder = gpu.device.createCommandEncoder();
     const computePass = encoder.beginComputePass();
@@ -190,13 +188,24 @@
     gpu.device.queue.submit([encoder.finish()]);
   }
 
-  function pause() {
-    clearInterval(updateInterval);
-  }
+  let isDrawing = $state(false);
+  let isPlaying = $state(false);
 
-  function start() {
-    updateInterval = setInterval(updateGrid, UPDATE_INTERVAL);
-  }
+  let shouldPlay = $derived(isDrawing || isPlaying);
+  let updateInterval: number | null = $state(null);
+
+  $effect(() => {
+    if (shouldPlay) {
+      if (!updateInterval) {
+        updateInterval = setInterval(updateGrid, UPDATE_INTERVAL);
+      }
+    } else {
+      if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+      }
+    }
+  });
 
   function onBrushMove(location: Float32Array | null) {
     if (location) {
@@ -205,8 +214,10 @@
         GRID_SIZE - (location[1] / canvas!.height) * GRID_SIZE,
       ]);
       brushLocation = remappedLocation;
+      isDrawing = true;
     } else {
       brushLocation = new Float32Array([-1, -1]);
+      isDrawing = false;
     }
     if (gpu && brushLocationBuffer) {
       gpu.writeToBuffer(brushLocationBuffer, brushLocation);
@@ -221,8 +232,8 @@
     {"->"}
   </div>
   <div>
-    <button onclick={pause}>Pause</button>
-    <button onclick={start}>Play</button>
+    <button onclick={() => (isPlaying = false)}>Pause</button>
+    <button onclick={() => (isPlaying = true)}>Play</button>
   </div>
 </main>
 

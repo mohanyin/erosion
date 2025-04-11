@@ -56,3 +56,17 @@ export class Utils {
 }
 
 export default new Utils();
+
+export function throttle<T extends (...args: unknown[]) => void>(
+  func: T,
+  delay: number,
+) {
+  let lastCall = 0;
+  return function (...args: Parameters<T>) {
+    const now = Date.now();
+    if (now - lastCall >= delay) {
+      lastCall = now;
+      func(...args);
+    }
+  };
+}
