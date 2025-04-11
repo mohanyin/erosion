@@ -9,6 +9,7 @@ export const Bindings = {
   WaterSourceHeight: 5,
   WaterStateA: 6,
   WaterStateB: 7,
+  BrushLocation: 8,
 } as const;
 
 export const GRID_SIZE = 100;

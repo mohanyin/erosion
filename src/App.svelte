@@ -22,7 +22,7 @@
   let vertices = Utils.getVerticesForSquare();
   let vertexBuffer: GPUBuffer | null = null;
 
-  let brushLocation: Float32Array | null = $state(null);
+  let brushLocation: Float32Array = $state(new Float32Array([-1, -1]));
   let brushLocationBuffer: GPUBuffer | null = null;
 
   let updateInterval: number;
@@ -76,6 +76,14 @@
     const waterStateArray = new Int32Array(GRID_SIZE * GRID_SIZE);
     waterStateArray[waterSourceIndex] = 1;
     simulation.createWaterStateBuffers(waterStateArray);
+
+    brushLocationBuffer = gpu.createStorageBuffer({
+      data: brushLocation,
+      label: "Brush location",
+      binding: Bindings.BrushLocation,
+      visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+      readonly: false,
+    });
 
     const simulationShaderModule = gpu.createShaderModule(
       { code: simulationShader },
@@ -191,7 +199,18 @@
   }
 
   function onBrushMove(location: Float32Array | null) {
-    brushLocation = location;
+    if (location) {
+      const remappedLocation = new Float32Array([
+        (location[0] / canvas!.width) * GRID_SIZE,
+        GRID_SIZE - (location[1] / canvas!.height) * GRID_SIZE,
+      ]);
+      brushLocation = remappedLocation;
+    } else {
+      brushLocation = new Float32Array([-1, -1]);
+    }
+    if (gpu && brushLocationBuffer) {
+      gpu.writeToBuffer(brushLocationBuffer, brushLocation);
+    }
   }
 </script>
 
@@ -201,9 +220,6 @@
   <div style="transform: rotate({windDirectionRad}rad);" class="wind-direction">
     {"->"}
   </div>
-  {#if brushLocation}
-    <div>Brush location: {brushLocation[0]}, {brushLocation[1]}</div>
-  {/if}
   <div>
     <button onclick={pause}>Pause</button>
     <button onclick={start}>Play</button>

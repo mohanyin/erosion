@@ -1,6 +1,4 @@
 <script lang="ts">
-  import type { SimulationGPU } from "@/lib/services/web-gpu";
-
   const WIDTH = 720;
   const HEIGHT = 720;
 

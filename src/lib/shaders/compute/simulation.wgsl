@@ -9,9 +9,11 @@
 @group(0) @binding({{HeightStateA}}) var<storage> heightStateIn: array<f32>;
 @group(0) @binding({{HeightStateB}}) var<storage, read_write> heightStateOut: array<f32>;
 
+@group(0) @binding({{BrushLocation}}) var<storage, read_write> brushLocation: vec2f;
+
 fn cellIndex(cell: vec2u) -> u32 {
-  return (cell.y % u32(grid.y)) * u32(grid.x) +
-         (cell.x % u32(grid.x));
+  return (min(cell.y, u32(grid.y) - 1)) * u32(grid.x) +
+         (min(cell.x, u32(grid.x) - 1));
 }
 
 fn getHeight(x: u32, y: u32) -> f32 {
@@ -74,12 +76,27 @@ fn updateWaterSpread(height: f32, x: u32, y: u32) {
   }
 }
 
+fn addMaterialFromBrush(height: f32, x: u32, y: u32) -> f32 {
+  let distanceToBrush = distance(vec2f(f32(x), f32(y)), brushLocation - 0.5);
+  let addedMaterial = 50.0 - pow(distanceToBrush, 3);
+  
+  let cellIndex = cellIndex(vec2(x, y));
+  if (addedMaterial > 0.0) {
+    return clamp(height + addedMaterial, 0.0, 1000.0);
+  }
+
+  return height;
+}
+
 @compute
 @workgroup_size({{WORKGROUP_SIZE}}, {{WORKGROUP_SIZE}})
 fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
-  let state = getHeight(cell.x, cell.y);
+  var state = getHeight(cell.x, cell.y);
   let waterState = getWaterState(cell.x, cell.y);
 
+  if (brushLocation.x != -1.0) {
+    state = addMaterialFromBrush(state, cell.x, cell.y);
+  }
   updateWaterSpread(state, cell.x , cell.y);
 
   // If underwater, there is no wind erosion
