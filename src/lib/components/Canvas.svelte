@@ -45,12 +45,21 @@
 
 <canvas
   id="canvas"
+  class="canvas"
   bind:this={canvas}
-  width={WIDTH}
-  height={HEIGHT}
   onpointerdown={setBrushLocation}
   onpointermove={onCanvasMouseMove}
   onpointerup={clearBrushLocation}
   onpointerenter={onPointerEnter}
   onpointerleave={clearBrushLocation}
 ></canvas>
+
+<style lang="scss">
+  .canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+  }
+</style>

@@ -12,13 +12,16 @@ export const Bindings = {
   BrushLocation: 8,
 } as const;
 
-export const GRID_SIZE = 100;
-
 export class Simulation {
   private gpu: SimulationGPU;
 
+  gridSize = $state([0, 0]);
+
+  gridCellCount = $derived(this.gridSize[0] * this.gridSize[1]);
+
   constructor(gpu: SimulationGPU) {
     this.gpu = gpu;
+    this.gridSize = [window.innerWidth, window.innerHeight];
   }
 
   createGridSizeBuffer() {
@@ -29,7 +32,7 @@ export class Simulation {
         GPUShaderStage.FRAGMENT |
         GPUShaderStage.COMPUTE,
       readonly: true,
-      data: new Float32Array([GRID_SIZE, GRID_SIZE]),
+      data: new Float32Array(this.gridSize),
       label: "Grid Size",
     });
   }

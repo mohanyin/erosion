@@ -4,7 +4,7 @@
   import Utils, { throttle } from "@/lib/services/utils";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import cellShader from "@/lib/shaders/cell.wgsl?raw";
-  import { Bindings, Simulation, GRID_SIZE } from "@/lib/services/simulation";
+  import { Bindings, Simulation } from "@/lib/services/simulation.svelte";
   import Canvas from "@/lib/components/Canvas.svelte";
 
   const UPDATE_INTERVAL = 50;
@@ -13,12 +13,13 @@
   const WIND_DIRECTION_VARIABILITY = 0.4;
 
   let canvas: HTMLCanvasElement | null = $state(null);
+  let simulation: Simulation | null = $state(null);
   let step = $state(0);
   let windDirectionRad = $state(Utils.pickRandomDirection());
   let windDirectionBuffer: GPUBuffer | null = null;
   let waterSourceHeight = $state(new Float32Array([300]));
   let waterSourceHeightBuffer: GPUBuffer | null = null;
-  let waterSourceLocation = $state(Utils.pickRandomPointOnEdge(GRID_SIZE));
+  let waterSourceLocation = $state(new Int32Array([0, 0]));
   let vertices = Utils.getVerticesForSquare();
   let vertexBuffer: GPUBuffer | null = null;
 
@@ -37,7 +38,7 @@
     await gpu.init();
     gpu.setupGPUCanvasRendering(canvas!);
 
-    const simulation = new Simulation(gpu);
+    simulation = new Simulation(gpu);
     simulation.createGridSizeBuffer();
 
     const windDirection = new Float32Array([0.0, 1.0]);
@@ -57,7 +58,7 @@
       ],
     });
 
-    const cellStateArray = new Float32Array(GRID_SIZE * GRID_SIZE);
+    const cellStateArray = new Float32Array(simulation.gridCellCount);
     const [heightStateA, _] =
       simulation.createHeightStateBuffers(cellStateArray);
 
@@ -70,8 +71,8 @@
     waterSourceHeightBuffer =
       simulation.createWaterSourceHeightBuffer(waterSourceHeight);
     const waterSourceIndex =
-      waterSourceLocation[0] + waterSourceLocation[1] * GRID_SIZE;
-    const waterStateArray = new Int32Array(GRID_SIZE * GRID_SIZE);
+      waterSourceLocation[0] + waterSourceLocation[1] * simulation.gridSize[0];
+    const waterStateArray = new Int32Array(simulation.gridCellCount);
     waterStateArray[waterSourceIndex] = 1;
     simulation.createWaterStateBuffers(waterStateArray);
 
@@ -159,7 +160,7 @@
 
     computePass.setPipeline(gpu.computePipeline!);
     computePass.setBindGroup(0, bindGroups[step % 2]);
-    const workgroupCount = Math.ceil(GRID_SIZE / WORKGROUP_SIZE);
+    const workgroupCount = Math.ceil(simulation!.gridSize[0] / WORKGROUP_SIZE);
     computePass.dispatchWorkgroups(workgroupCount, workgroupCount);
     computePass.end();
 
@@ -181,7 +182,7 @@
     pass.setPipeline(gpu.renderPipeline!);
     pass.setBindGroup(0, bindGroups[step % 2]);
     pass.setVertexBuffer(0, vertexBuffer);
-    pass.draw(vertices.length / 2, GRID_SIZE * GRID_SIZE);
+    pass.draw(vertices.length / 2, simulation!.gridCellCount);
 
     // End the render pass and submit the command buffer
     pass.end();
@@ -210,8 +211,9 @@
   function onBrushMove(location: Float32Array | null) {
     if (location) {
       const remappedLocation = new Float32Array([
-        (location[0] / canvas!.width) * GRID_SIZE,
-        GRID_SIZE - (location[1] / canvas!.height) * GRID_SIZE,
+        (location[0] / canvas!.width) * simulation!.gridSize[0],
+        simulation!.gridSize[1] -
+          (location[1] / canvas!.height) * simulation!.gridSize[1],
       ]);
       brushLocation = remappedLocation;
       isDrawing = true;
