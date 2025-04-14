@@ -230,8 +230,11 @@
 <main>
   <Canvas {onBrushMove} bind:canvas></Canvas>
   <div>Step: {step}</div>
-  <div style="transform: rotate({windDirectionRad}rad);" class="wind-direction">
-    {"->"}
+  <div
+    style="transform: rotate({windDirectionRad}rad);"
+    class="wind-direction text-3xl"
+  >
+    <span class="material-symbols-outlined"> assistant_navigation </span>
   </div>
   <div>
     <button onclick={() => (isPlaying = false)}>Pause</button>
