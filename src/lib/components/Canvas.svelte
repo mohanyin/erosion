@@ -1,7 +1,4 @@
 <script lang="ts">
-  const WIDTH = 720;
-  const HEIGHT = 720;
-
   let brushLocation: Float32Array | null = $state(null);
 
   interface Props {

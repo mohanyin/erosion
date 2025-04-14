@@ -6,7 +6,7 @@
   import cellShader from "@/lib/shaders/cell.wgsl?raw";
   import { Bindings, Simulation } from "@/lib/services/simulation.svelte";
   import Canvas from "@/lib/components/Canvas.svelte";
-
+  import FileControls from "@/lib/components/FileControls.svelte";
   const UPDATE_INTERVAL = 50;
   const WORKGROUP_SIZE = 8;
   const MAXIMUM_HEIGHT = 1000;
@@ -211,9 +211,9 @@
   function onBrushMove(location: Float32Array | null) {
     if (location) {
       const remappedLocation = new Float32Array([
-        (location[0] / canvas!.width) * simulation!.gridSize[0],
+        (location[0] / canvas!.clientWidth) * simulation!.gridSize[0],
         simulation!.gridSize[1] -
-          (location[1] / canvas!.height) * simulation!.gridSize[1],
+          (location[1] / canvas!.clientHeight) * simulation!.gridSize[1],
       ]);
       brushLocation = remappedLocation;
       isDrawing = true;
@@ -228,22 +228,10 @@
 </script>
 
 <main>
+  <FileControls
+    {isPlaying}
+    windDirection={windDirectionRad}
+    onPlayToggled={(play: boolean) => (isPlaying = play)}
+  />
   <Canvas {onBrushMove} bind:canvas></Canvas>
-  <div>Step: {step}</div>
-  <div
-    style="transform: rotate({windDirectionRad}rad);"
-    class="wind-direction text-3xl"
-  >
-    <span class="material-symbols-outlined"> assistant_navigation </span>
-  </div>
-  <div>
-    <button onclick={() => (isPlaying = false)}>Pause</button>
-    <button onclick={() => (isPlaying = true)}>Play</button>
-  </div>
 </main>
-
-<style>
-  .wind-direction {
-    display: inline-block;
-  }
-</style>

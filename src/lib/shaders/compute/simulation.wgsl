@@ -81,7 +81,7 @@ fn updateWaterSpread(height: f32, x: i32, y: i32) {
 
 fn addMaterialFromBrush(height: f32, x: i32, y: i32) -> f32 {
   let distanceToBrush = distance(vec2f(f32(x), f32(y)), brushLocation - 0.5);
-  let addedMaterial = 50.0 - pow(distanceToBrush, 3);
+  let addedMaterial = 50.0 - pow(distanceToBrush / 10, 3);
   
   let cellIndex = cellIndex(x, y);
   if (addedMaterial > 0.0) {
