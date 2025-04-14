@@ -1,16 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { SimulationGPU } from "@/lib/services/web-gpu";
-  import Utils, { throttle } from "@/lib/services/utils";
+  import Utils from "@/lib/services/utils";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import cellShader from "@/lib/shaders/cell.wgsl?raw";
   import { Bindings, Simulation } from "@/lib/services/simulation.svelte";
   import Canvas from "@/lib/components/Canvas.svelte";
   import FileControls from "@/lib/components/FileControls.svelte";
+
   const UPDATE_INTERVAL = 50;
   const WORKGROUP_SIZE = 8;
   const MAXIMUM_HEIGHT = 1000;
-  const WIND_DIRECTION_VARIABILITY = 0.4;
+  const WIND_DIRECTION_VARIABILITY = 0.1;
 
   let canvas: HTMLCanvasElement | null = $state(null);
   let simulation: Simulation | null = $state(null);
