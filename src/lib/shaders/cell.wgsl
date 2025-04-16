@@ -6,12 +6,12 @@ struct VertexInput {
 struct VertexOutput {
   @builtin(position) pos: vec4f,
   @location(0) cell: vec2f,
-  @location(1) state: f32,
+  @location(1) color: vec3f,
   @interpolate(flat) @location(2) instance: u32,
 };
 
 @group(0) @binding({{GridSize}}) var<uniform> grid: vec2f;
-@group(0) @binding({{HeightStateA}}) var<storage> heightState: array<f32>;
+@group(0) @binding({{ColorsA}}) var<storage> colors: array<f32>;
 @group(0) @binding({{WaterStateA}}) var<storage> waterState: array<i32>;
 @group(0) @binding({{BrushLocation}}) var<storage, read_write> brushLocation: vec2f;
 
@@ -27,18 +27,17 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
   output.cell = cell;
   output.instance = input.instance;
 
-  let state = heightState[input.instance];
-  output.state = state;
+  let colorIndex = 3 * input.instance;
+  output.color = vec3f(colors[colorIndex], colors[colorIndex + 1], colors[colorIndex + 2]);
   return output;
 }
 
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-  let c = input.state / {{MAX_HEIGHT}};
   let water = waterState[input.instance];
   if (water == 1) {
-    return vec4f(c, 1 - c, 1, 1);
+    return vec4f(0, 0, 1, 1);
   } else {
-    return vec4f(c, c, c, 1);
+    return vec4f(input.color / 255.0, 1);
   }
 } 

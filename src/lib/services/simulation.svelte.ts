@@ -2,8 +2,8 @@ import type { SimulationGPU } from "@/lib/services/web-gpu";
 
 export const Bindings = {
   GridSize: 0,
-  HeightStateA: 1,
-  HeightStateB: 2,
+  ColorsA: 1,
+  ColorsB: 2,
   WindDirection: 3,
   WaterSourceLocation: 4,
   WaterSourceHeight: 5,
@@ -57,21 +57,21 @@ export class Simulation {
     });
   }
 
-  createHeightStateBuffers(data: Float32Array) {
+  createColorBuffers(data: Float32Array) {
     return [
       this.gpu.createStorageBuffer({
         data,
-        label: "Height State A",
+        label: "Color State A",
         binding: (step: number) =>
-          step % 2 === 0 ? Bindings.HeightStateA : Bindings.HeightStateB,
+          step % 2 === 0 ? Bindings.ColorsA : Bindings.ColorsB,
         visibility: GPUShaderStage.VERTEX | GPUShaderStage.COMPUTE,
         readonly: true,
       }),
       this.gpu.createStorageBuffer({
         data,
-        label: "Height State B",
+        label: "Color State B",
         binding: (step: number) =>
-          step % 2 === 0 ? Bindings.HeightStateB : Bindings.HeightStateA,
+          step % 2 === 0 ? Bindings.ColorsB : Bindings.ColorsA,
         visibility: GPUShaderStage.COMPUTE,
         readonly: false,
       }),

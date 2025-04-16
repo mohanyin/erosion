@@ -6,8 +6,8 @@
 @group(0) @binding({{WaterStateA}}) var<storage> waterStateIn: array<i32>;
 @group(0) @binding({{WaterStateB}}) var<storage, read_write> waterStateOut: array<i32>;
 
-@group(0) @binding({{HeightStateA}}) var<storage> heightStateIn: array<f32>;
-@group(0) @binding({{HeightStateB}}) var<storage, read_write> heightStateOut: array<f32>;
+@group(0) @binding({{ColorsA}}) var<storage> colorsIn: array<f32>;
+@group(0) @binding({{ColorsB}}) var<storage, read_write> colorsOut: array<f32>;
 
 @group(0) @binding({{BrushLocation}}) var<storage, read_write> brushLocation: vec2f;
 
@@ -17,22 +17,36 @@ fn clampCellToGrid(x: i32, y: i32) -> vec2i {
 
 fn cellIndex(x: i32, y: i32) -> u32 {
   let clampedCell = clampCellToGrid(x, y);
-  return u32(clampedCell.y) * u32(grid.x) + u32(clampedCell.x);
+  return (u32(clampedCell.y) * u32(grid.x) + u32(clampedCell.x));
 }
 
-fn getHeight(x: i32, y: i32) -> f32 {
-  return heightStateIn[cellIndex(x, y)];
+fn getColor(x: i32, y: i32) -> vec3f {
+  let index = 3 * cellIndex(x, y);
+  return vec3f(colorsIn[index], colorsIn[index + 1], colorsIn[index + 2]);
+}
+
+fn calculateDarkness(color: vec3f) -> f32 {
+  // max darkness (sqrt(3 * 255^2)) is 441.6729559301
+  return length(vec3f(255.0) - color) / 441.6729559301;
+}
+
+fn setColorOut(x: i32, y: i32, color: vec3f) {
+  let normalizedColor = clamp(color, vec3f(0.0), vec3f(255.0));
+  let index = 3 * cellIndex(x, y);
+  colorsOut[index] = normalizedColor.x;
+  colorsOut[index + 1] = normalizedColor.y;
+  colorsOut[index + 2] = normalizedColor.z;
 }
 
 fn getWindMovedMaterial(x: i32, y: i32) -> f32 {
-  let state = getHeight(x, y);
-  let left = getHeight(x-1, y);
-  let right = getHeight(x+1, y);
-  let up = getHeight(x, y+1);
-  let down = getHeight(x, y-1);
+  let state = calculateDarkness(getColor(x, y));
+  let left = calculateDarkness(getColor(x-1, y));
+  let right = calculateDarkness(getColor(x+1, y));
+  let up = calculateDarkness(getColor(x, y+1));
+  let down = calculateDarkness(getColor(x, y-1));
 
   let localMaximaFactor = state - (left + right + up + down) / 4.0;
-  return clamp(localMaximaFactor / 2, 0.0, 10.0);
+  return clamp(localMaximaFactor * 200, 0.0, 10.0);
 }
 
 fn getWaterState(x: i32, y: i32) -> i32 {
@@ -57,38 +71,37 @@ fn hasNeighborWithWater(x: i32, y: i32, value: i32) -> bool {
   return false;
 }
 
-fn updateWaterSpread(height: f32, x: i32, y: i32) {
+fn updateWaterSpread(color: vec3f, x: i32, y: i32) -> i32 {
   let cellIndex = cellIndex(x, y);
   if (i32(waterSourceLocation.x) == x && i32(waterSourceLocation.y) == y) {
     waterStateOut[cellIndex] = 1;
-    return;
+    return 1;
   }
 
-  let hasWater = getWaterState(x, y) == 1;
-  
-  waterStateOut[cellIndex] = getWaterState(x, y);
-
-  if (hasWater) {
-    if (height > waterSourceHeight) {
-      waterStateOut[cellIndex] = 0;
-    } 
-  } else {
-    if (height < waterSourceHeight && hasNeighborWithWater(x, y, 1)) {
-      waterStateOut[cellIndex] = 1;
-    } 
+  let darkness = calculateDarkness(color);
+  if (darkness > waterSourceHeight) {
+    waterStateOut[cellIndex] = 0;
+    return 0;
+  } else if (darkness < waterSourceHeight && hasNeighborWithWater(x, y, 1)) {
+    waterStateOut[cellIndex] = 1;
+    return 1;
   }
+
+  let currentState = getWaterState(x, y);
+  waterStateOut[cellIndex] = currentState;
+  return currentState;
 }
 
-fn addMaterialFromBrush(height: f32, x: i32, y: i32) -> f32 {
+fn addMaterialFromBrush(color: vec3f, x: i32, y: i32) -> vec3f {
   let distanceToBrush = distance(vec2f(f32(x), f32(y)), brushLocation - 0.5);
-  let addedMaterial = 50.0 - pow(distanceToBrush / 10, 3);
-  
-  let cellIndex = cellIndex(x, y);
+  let addedMaterial = 30.0 - pow(distanceToBrush / 10.0, 3);
+  let addedMaterialColor = vec3f(addedMaterial);
+
   if (addedMaterial > 0.0) {
-    return clamp(height + addedMaterial, 0.0, 1000.0);
+    return clamp(color - addedMaterialColor, vec3f(0.0), vec3f(255.0));
   }
 
-  return height;
+  return color;
 }
 
 @compute
@@ -96,19 +109,20 @@ fn addMaterialFromBrush(height: f32, x: i32, y: i32) -> f32 {
 fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   let x = i32(cell.x);
   let y = i32(cell.y);
-  var state = getHeight(x, y);
-  let waterState = getWaterState(x, y);
+  var color = getColor(x, y);
+  let darkness = calculateDarkness(color);
+  var waterState = getWaterState(x, y);
 
   if (brushLocation.x != -1.0) {
-    state = addMaterialFromBrush(state, x, y);
+    color = addMaterialFromBrush(color, x, y);
   }
-  updateWaterSpread(state, x, y);
+  waterState = updateWaterSpread(color, x, y);
 
   // If underwater, there is no wind erosion
   if (waterState == 1) {
-    let waterDepth = waterSourceHeight - state;
-    let waterRemovedMaterial = max(20.0 - waterDepth / 20, 0.0);
-    heightStateOut[cellIndex(x, y)] = clamp(state - waterRemovedMaterial, 0.0, 1000.0);
+    let waterDepth = waterSourceHeight - darkness;
+    let waterRemovedMaterial = clamp(20.0 - waterDepth * 20, 0.0, 255.0);
+    setColorOut(x, y, color + vec3f(waterRemovedMaterial));
     return;
   }
 
@@ -136,11 +150,12 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   // Removed material from being near water
   var waterRemovedMaterial = 0.0;
   if (waterState == 1) {
-    let waterDepth = waterSourceHeight - state;
-    waterRemovedMaterial = max(20.0 - waterDepth / 100, 0.0);
+    let waterDepth = waterSourceHeight - darkness;
+    waterRemovedMaterial = max(20.0 - waterDepth * 4, 0.0);
   } else if (getWaterState(x, y - 1) == 1) {
     waterRemovedMaterial = 3.0;
   }
 
-  heightStateOut[cellIndex(x, y)] = clamp(state - removedMaterial + addedMaterial - waterRemovedMaterial, 0.0, 1000.0);  
+  let delta = removedMaterial + addedMaterial - waterRemovedMaterial;
+  setColorOut(x, y, color + vec3f(delta));
 }

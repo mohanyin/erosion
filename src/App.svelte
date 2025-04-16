@@ -14,11 +14,13 @@
   const WIND_DIRECTION_VARIABILITY = 0.1;
 
   let canvas: HTMLCanvasElement | null = $state(null);
+  let gpu: SimulationGPU | null = $state(null);
   let simulation: Simulation | null = $state(null);
+
   let step = $state(0);
   let windDirectionRad = $state(Utils.pickRandomDirection());
   let windDirectionBuffer: GPUBuffer | null = null;
-  let waterSourceHeight = $state(new Float32Array([300]));
+  let waterSourceHeight = $state(new Float32Array([0.01]));
   let waterSourceHeightBuffer: GPUBuffer | null = null;
   let waterSourceLocation = $state(new Int32Array([0, 0]));
   let vertices = Utils.getVerticesForSquare();
@@ -26,8 +28,6 @@
 
   let brushLocation: Float32Array = $state(new Float32Array([-1, -1]));
   let brushLocationBuffer: GPUBuffer | null = null;
-
-  let gpu: SimulationGPU | null = $state(null);
 
   onMount(async () => {
     await setupSimulation();
@@ -59,15 +59,10 @@
       ],
     });
 
-    const cellStateArray = new Float32Array(simulation.gridCellCount);
-    const [heightStateA, _] =
-      simulation.createHeightStateBuffers(cellStateArray);
-
-    for (let i = 0; i < cellStateArray.length; ++i) {
-      cellStateArray[i] = Math.random() * MAXIMUM_HEIGHT;
-    }
-    // todo just initialize this first?
-    gpu.device.queue.writeBuffer(heightStateA, 0, cellStateArray);
+    const cellStateArray = new Float32Array(simulation.gridCellCount * 3).fill(
+      255,
+    );
+    simulation.createColorBuffers(cellStateArray);
 
     waterSourceHeightBuffer =
       simulation.createWaterSourceHeightBuffer(waterSourceHeight);
