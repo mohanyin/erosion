@@ -1,16 +1,4 @@
-import type { SimulationGPU } from "@/lib/services/web-gpu";
-
-export const Bindings = {
-  GridSize: 0,
-  ColorsA: 1,
-  ColorsB: 2,
-  WindDirection: 3,
-  WaterSourceLocation: 4,
-  WaterSourceHeight: 5,
-  WaterStateA: 6,
-  WaterStateB: 7,
-  BrushLocation: 8,
-} as const;
+import { SimulationGPU, Bindings } from "@/lib/services/web-gpu";
 
 export class Simulation {
   private gpu: SimulationGPU;

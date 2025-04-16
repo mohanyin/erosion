@@ -1,14 +1,14 @@
 <script lang="ts">
-  let brushLocation: Float32Array | null = $state(null);
+  let toolLocation: Float32Array | null = $state(null);
 
   interface Props {
-    onBrushMove: (event: Float32Array | null) => void;
+    onToolMove: (event: Float32Array | null) => void;
     canvas: HTMLCanvasElement | null;
   }
 
-  let { onBrushMove, canvas = $bindable() }: Props = $props();
+  let { onToolMove, canvas = $bindable() }: Props = $props();
 
-  function setBrushLocation(event: MouseEvent) {
+  function setToolLocation(event: MouseEvent) {
     if (!canvas) {
       return;
     }
@@ -16,26 +16,26 @@
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    brushLocation = new Float32Array([x, y]);
-    onBrushMove(brushLocation);
+    toolLocation = new Float32Array([x, y]);
+    onToolMove(toolLocation);
   }
 
   function onCanvasMouseMove(event: MouseEvent) {
-    if (!brushLocation) {
+    if (!toolLocation) {
       return;
     }
-    setBrushLocation(event);
+    setToolLocation(event);
   }
 
-  function clearBrushLocation() {
-    brushLocation = null;
-    onBrushMove(brushLocation);
+  function clearToolLocation() {
+    toolLocation = null;
+    onToolMove(toolLocation);
   }
 
   function onPointerEnter(event: PointerEvent) {
     // "1" means primary button (left mouse button)
     if (event.buttons === 1) {
-      setBrushLocation(event);
+      setToolLocation(event);
     }
   }
 </script>
@@ -44,11 +44,11 @@
   id="canvas"
   class="canvas"
   bind:this={canvas}
-  onpointerdown={setBrushLocation}
+  onpointerdown={setToolLocation}
   onpointermove={onCanvasMouseMove}
-  onpointerup={clearBrushLocation}
+  onpointerup={clearToolLocation}
   onpointerenter={onPointerEnter}
-  onpointerleave={clearBrushLocation}
+  onpointerleave={clearToolLocation}
 ></canvas>
 
 <style lang="scss">

@@ -9,7 +9,18 @@
 @group(0) @binding({{ColorsA}}) var<storage> colorsIn: array<f32>;
 @group(0) @binding({{ColorsB}}) var<storage, read_write> colorsOut: array<f32>;
 
-@group(0) @binding({{BrushLocation}}) var<storage, read_write> brushLocation: vec2f;
+@group(0) @binding({{Tool}}) var<uniform> tool: i32;
+@group(0) @binding({{ToolLocation}}) var<uniform> toolLocation: vec2f;
+@group(0) @binding({{ToolColor}}) var<uniform> toolColor: vec3f;
+@group(0) @binding({{ToolSize}}) var<uniform> toolSize: f32;
+@group(0) @binding({{ToolOpacity}}) var<uniform> toolOpacity: f32;
+
+const PENCIL = 0;
+const PEN = 1;
+const MARKER = 2;
+const BRUSH = 3;
+const WATER = 4;
+const WIND_EROSION = 5;
 
 fn clampCellToGrid(x: i32, y: i32) -> vec2i {
   return vec2i(clamp(x, 0, i32(grid.x) - 1), clamp(y, 0, i32(grid.y) - 1));
@@ -92,13 +103,16 @@ fn updateWaterSpread(color: vec3f, x: i32, y: i32) -> i32 {
   return currentState;
 }
 
-fn addMaterialFromBrush(color: vec3f, x: i32, y: i32) -> vec3f {
-  let distanceToBrush = distance(vec2f(f32(x), f32(y)), brushLocation - 0.5);
-  let addedMaterial = 30.0 - pow(distanceToBrush / 10.0, 3);
-  let addedMaterialColor = vec3f(addedMaterial);
+fn addMaterialFromTool(color: vec3f, x: i32, y: i32) -> vec3f {
+  let distanceToTool = distance(vec2f(f32(x), f32(y)), toolLocation - 0.5);
 
-  if (addedMaterial > 0.0) {
-    return clamp(color - addedMaterialColor, vec3f(0.0), vec3f(255.0));
+  if (tool == PENCIL || tool == PEN) {
+    if (distanceToTool < toolSize) {
+      let colorDifference = color - toolColor;
+      let change = toolOpacity * colorDifference;
+
+      return clamp(color - change, vec3f(0.0), vec3f(255.0));
+    }
   }
 
   return color;
@@ -113,8 +127,8 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   let darkness = calculateDarkness(color);
   var waterState = getWaterState(x, y);
 
-  if (brushLocation.x != -1.0) {
-    color = addMaterialFromBrush(color, x, y);
+  if (toolLocation.x != -1.0) {
+    color = addMaterialFromTool(color, x, y);
   }
   waterState = updateWaterSpread(color, x, y);
 

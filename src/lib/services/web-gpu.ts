@@ -1,3 +1,19 @@
+export const Bindings = {
+  GridSize: 0,
+  ColorsA: 1,
+  ColorsB: 2,
+  WindDirection: 3,
+  WaterSourceLocation: 4,
+  WaterSourceHeight: 5,
+  WaterStateA: 6,
+  WaterStateB: 7,
+  Tool: 8,
+  ToolColor: 9,
+  ToolSize: 10,
+  ToolLocation: 11,
+  ToolOpacity: 12,
+} as const;
+
 export class BaseGPU {
   private _device: GPUDevice | null = null;
   private _context: GPUCanvasContext | null = null;

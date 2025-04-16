@@ -1,21 +1,23 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { SimulationGPU } from "@/lib/services/web-gpu";
+  import { SimulationGPU, Bindings } from "@/lib/services/web-gpu";
   import Utils from "@/lib/services/utils";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import cellShader from "@/lib/shaders/cell.wgsl?raw";
-  import { Bindings, Simulation } from "@/lib/services/simulation.svelte";
+  import { Simulation } from "@/lib/services/simulation.svelte";
+  import { Drawing, Tools } from "@/lib/services/drawing";
   import Canvas from "@/lib/components/Canvas.svelte";
   import FileControls from "@/lib/components/FileControls.svelte";
   import DrawingControls from "@/lib/components/DrawingControls.svelte";
+
   const UPDATE_INTERVAL = 50;
   const WORKGROUP_SIZE = 8;
-  const MAXIMUM_HEIGHT = 1000;
   const WIND_DIRECTION_VARIABILITY = 0.1;
 
   let canvas: HTMLCanvasElement | null = $state(null);
   let gpu: SimulationGPU | null = $state(null);
   let simulation: Simulation | null = $state(null);
+  let drawing: Drawing | null = $state(null);
 
   let step = $state(0);
   let windDirectionRad = $state(Utils.pickRandomDirection());
@@ -26,8 +28,16 @@
   let vertices = Utils.getVerticesForSquare();
   let vertexBuffer: GPUBuffer | null = null;
 
-  let brushLocation: Float32Array = $state(new Float32Array([-1, -1]));
-  let brushLocationBuffer: GPUBuffer | null = null;
+  let tool = $state(Tools.Pencil);
+  let toolBuffer: GPUBuffer | null = null;
+  let toolLocation: Float32Array = $state(new Float32Array([-1, -1]));
+  let toolLocationBuffer: GPUBuffer | null = null;
+  let toolColor: Float32Array = $state(new Float32Array([35, 25, 100]));
+  let toolColorBuffer: GPUBuffer | null = null;
+  let toolSize: Float32Array = $state(new Float32Array([12]));
+  let toolSizeBuffer: GPUBuffer | null = null;
+  let toolOpacity: Float32Array = $state(new Float32Array([1]));
+  let toolOpacityBuffer: GPUBuffer | null = null;
 
   onMount(async () => {
     await setupSimulation();
@@ -72,13 +82,12 @@
     waterStateArray[waterSourceIndex] = 1;
     simulation.createWaterStateBuffers(waterStateArray);
 
-    brushLocationBuffer = gpu.createStorageBuffer({
-      data: brushLocation,
-      label: "Brush location",
-      binding: Bindings.BrushLocation,
-      visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-      readonly: false,
-    });
+    drawing = new Drawing(gpu);
+    toolBuffer = drawing.createToolBuffer(new Int32Array([tool]));
+    toolLocationBuffer = drawing.createToolLocationBuffer(toolLocation);
+    toolColorBuffer = drawing.createToolColorBuffer(toolColor);
+    toolSizeBuffer = drawing.createToolSizeBuffer(toolSize);
+    toolOpacityBuffer = drawing.createToolOpacityBuffer(toolOpacity);
 
     const simulationShaderModule = gpu.createShaderModule(
       { code: simulationShader },
@@ -87,7 +96,7 @@
 
     const cellShaderModule = gpu.createShaderModule(
       { code: cellShader },
-      { MAX_HEIGHT: MAXIMUM_HEIGHT.toString(), ...Bindings },
+      { ...Bindings },
     );
 
     gpu.finalizePipelines({
@@ -204,21 +213,21 @@
     }
   });
 
-  function onBrushMove(location: Float32Array | null) {
+  function onToolMove(location: Float32Array | null) {
     if (location) {
       const remappedLocation = new Float32Array([
         (location[0] / canvas!.clientWidth) * simulation!.gridSize[0],
         simulation!.gridSize[1] -
           (location[1] / canvas!.clientHeight) * simulation!.gridSize[1],
       ]);
-      brushLocation = remappedLocation;
+      toolLocation = remappedLocation;
       isDrawing = true;
     } else {
-      brushLocation = new Float32Array([-1, -1]);
+      toolLocation = new Float32Array([-1, -1]);
       isDrawing = false;
     }
-    if (gpu && brushLocationBuffer) {
-      gpu.writeToBuffer(brushLocationBuffer, brushLocation);
+    if (gpu && toolLocationBuffer) {
+      gpu.writeToBuffer(toolLocationBuffer, toolLocation);
     }
   }
 </script>
@@ -230,5 +239,5 @@
     onPlayToggled={(play: boolean) => (isPlaying = play)}
   />
   <DrawingControls></DrawingControls>
-  <Canvas {onBrushMove} bind:canvas></Canvas>
+  <Canvas {onToolMove} bind:canvas></Canvas>
 </main>
