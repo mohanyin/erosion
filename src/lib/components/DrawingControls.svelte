@@ -126,4 +126,12 @@
         onColorChange([undefined, undefined, Number(event.target!.value)])}
     />
   </ButtonWithPopover>
+  <div
+    class="rounded-full w-8 h-8 bg-gray-300"
+    style={`background-color: rgb(${toolColor[0]}, ${toolColor[1]}, ${toolColor[2]})`}
+  >
+    <span class="sr-only">
+      Current color is red: {toolColor[0]}, green: {toolColor[1]}, blue: {toolColor[2]}`
+    </span>
+  </div>
 </Panel>
