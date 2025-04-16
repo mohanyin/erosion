@@ -24,7 +24,7 @@
   let windDirectionBuffer: GPUBuffer | null = null;
   let waterSourceHeight = $state(new Float32Array([0.01]));
   let waterSourceHeightBuffer: GPUBuffer | null = null;
-  let waterSourceLocation = $state(new Int32Array([0, 0]));
+  let waterSourceLocation = $state(new Int32Array([-1, -1]));
   let vertices = Utils.getVerticesForSquare();
   let vertexBuffer: GPUBuffer | null = null;
 
@@ -222,7 +222,6 @@
         simulation!.gridSize[1] -
           (location[1] / canvas!.clientHeight) * simulation!.gridSize[1],
       ]);
-      console.log(remappedLocation);
       toolLocation = remappedLocation;
       isDrawing = true;
     } else {
@@ -233,6 +232,27 @@
       gpu.writeToBuffer(toolLocationBuffer, toolLocation);
     }
   }
+
+  function onToolColorChange(color: Float32Array) {
+    toolColor = color;
+    if (gpu && toolColorBuffer) {
+      gpu.writeToBuffer(toolColorBuffer, toolColor);
+    }
+  }
+
+  function onToolSizeChange(size: Float32Array) {
+    toolSize = size;
+    if (gpu && toolSizeBuffer) {
+      gpu.writeToBuffer(toolSizeBuffer, toolSize);
+    }
+  }
+
+  function onToolOpacityChange(opacity: Float32Array) {
+    toolOpacity = opacity;
+    if (gpu && toolOpacityBuffer) {
+      gpu.writeToBuffer(toolOpacityBuffer, toolOpacity);
+    }
+  }
 </script>
 
 <main>
@@ -241,6 +261,13 @@
     windDirection={windDirectionRad}
     onPlayToggled={(play: boolean) => (isPlaying = play)}
   />
-  <DrawingControls></DrawingControls>
+  <DrawingControls
+    {toolColor}
+    {toolSize}
+    {toolOpacity}
+    {onToolColorChange}
+    {onToolSizeChange}
+    {onToolOpacityChange}
+  />
   <Canvas {onToolMove} bind:canvas></Canvas>
 </main>

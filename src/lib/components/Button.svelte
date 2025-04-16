@@ -1,5 +1,5 @@
 <script lang="ts">
-  interface Props {
+  export interface Props {
     icon?: string;
     ariaLabel?: string;
     onclick?: () => void;
