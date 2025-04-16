@@ -1,5 +1,7 @@
 import { SimulationGPU, Bindings } from "@/lib/services/web-gpu";
 
+export const WORKGROUP_SIZE = 8;
+
 export class Simulation {
   private gpu: SimulationGPU;
 
@@ -95,5 +97,20 @@ export class Simulation {
         readonly: false,
       }),
     ];
+  }
+
+  runComputePass(
+    pipelineName: string,
+    encoder: GPUCommandEncoder,
+    bindGroup: GPUBindGroup,
+  ) {
+    const pass = encoder.beginComputePass();
+    pass.setPipeline(this.gpu.computePipelines[pipelineName]);
+    pass.setBindGroup(0, bindGroup);
+    pass.dispatchWorkgroups(
+      Math.ceil(this.gridSize[0] / WORKGROUP_SIZE),
+      Math.ceil(this.gridSize[1] / WORKGROUP_SIZE),
+    );
+    pass.end();
   }
 }

@@ -216,8 +216,11 @@ export class GPU extends BaseGPU {
   }
 }
 
+type ComputePipelineMap = Record<string, GPUComputePipeline>;
+
 export class SimulationGPU extends GPU {
-  computePipeline: GPUComputePipeline | null = null;
+  isFinalized = false;
+  computePipelines: ComputePipelineMap = {};
   renderPipeline: GPURenderPipeline | null = null;
 
   finalizePipelines({
@@ -227,12 +230,12 @@ export class SimulationGPU extends GPU {
     fragment,
   }: {
     label: string;
-    compute: GPUProgrammableStage;
+    compute: Record<string, GPUProgrammableStage>;
     vertex: GPUVertexState;
     fragment: GPUFragmentState;
-  }): { compute: GPUComputePipeline; render: GPURenderPipeline } {
-    if (this.computePipeline && this.renderPipeline) {
-      return { compute: this.computePipeline, render: this.renderPipeline };
+  }): { compute: ComputePipelineMap; render: GPURenderPipeline } {
+    if (this.isFinalized) {
+      return { compute: this.computePipelines, render: this.renderPipeline! };
     }
 
     const bindGroupLayout = this.device.createBindGroupLayout({
@@ -244,12 +247,14 @@ export class SimulationGPU extends GPU {
       bindGroupLayouts: [bindGroupLayout],
     });
 
-    const computePipeline = this.device.createComputePipeline({
-      label: `${label} Compute Pipeline`,
-      compute,
-      layout: pipelineLayout,
+    Object.entries(compute).forEach(([label, compute]) => {
+      const computePipeline = this.device.createComputePipeline({
+        label: `${label} Compute Pipeline`,
+        compute,
+        layout: pipelineLayout,
+      });
+      this.computePipelines[label] = computePipeline;
     });
-    this.computePipeline = computePipeline;
 
     const renderPipeline = this.device.createRenderPipeline({
       label: `${label} Render Pipeline`,
@@ -259,6 +264,7 @@ export class SimulationGPU extends GPU {
     });
     this.renderPipeline = renderPipeline;
 
-    return { compute: computePipeline, render: renderPipeline };
+    this.isFinalized = true;
+    return { compute: this.computePipelines, render: renderPipeline };
   }
 }

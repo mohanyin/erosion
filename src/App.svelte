@@ -4,15 +4,16 @@
   import Utils from "@/lib/services/utils";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import cellShader from "@/lib/shaders/cell.wgsl?raw";
-  import { Simulation } from "@/lib/services/simulation.svelte";
+  import waterSimulationShader from "@/lib/shaders/compute/water-simulation.wgsl?raw";
+  import shaderUtils from "@/lib/shaders/compute/utils.wgsl?raw";
+  import { Simulation, WORKGROUP_SIZE } from "@/lib/services/simulation.svelte";
   import { Drawing, Tools } from "@/lib/services/drawing";
   import Canvas from "@/lib/components/Canvas.svelte";
   import FileControls from "@/lib/components/FileControls.svelte";
   import DrawingControls from "@/lib/components/DrawingControls.svelte";
 
   const UPDATE_INTERVAL = 50;
-  const WORKGROUP_SIZE = 8;
-  const WIND_DIRECTION_VARIABILITY = 0.1;
+  const WIND_DIRECTION_VARIABILITY = 0.4;
 
   let canvas: HTMLCanvasElement | null = $state(null);
   let gpu: SimulationGPU | null = $state(null);
@@ -24,7 +25,7 @@
   let windDirectionBuffer: GPUBuffer | null = null;
   let waterSourceHeight = $state(new Float32Array([0.01]));
   let waterSourceHeightBuffer: GPUBuffer | null = null;
-  let waterSourceLocation = $state(new Int32Array([-1, -1]));
+  let waterSourceLocation = $state(new Int32Array([8, 8]));
   let vertices = Utils.getVerticesForSquare();
   let vertexBuffer: GPUBuffer | null = null;
 
@@ -90,20 +91,31 @@
     toolOpacityBuffer = drawing.createToolOpacityBuffer(toolOpacity);
 
     const simulationShaderModule = gpu.createShaderModule(
-      { code: simulationShader },
+      { code: shaderUtils + simulationShader },
+      { WORKGROUP_SIZE: WORKGROUP_SIZE.toString(), ...Bindings },
+    );
+
+    const waterSimulationShaderModule = gpu.createShaderModule(
+      { code: shaderUtils + waterSimulationShader },
       { WORKGROUP_SIZE: WORKGROUP_SIZE.toString(), ...Bindings },
     );
 
     const cellShaderModule = gpu.createShaderModule(
-      { code: cellShader },
+      { code: shaderUtils + cellShader },
       { ...Bindings },
     );
 
     gpu.finalizePipelines({
       label: "Simulation",
       compute: {
-        module: simulationShaderModule,
-        entryPoint: "computeMain",
+        simulation: {
+          module: simulationShaderModule,
+          entryPoint: "computeMain",
+        },
+        waterSimulation: {
+          module: waterSimulationShaderModule,
+          entryPoint: "computeMain",
+        },
       },
       vertex: {
         module: cellShaderModule,
@@ -145,9 +157,12 @@
   });
 
   function updateGrid() {
-    if (!gpu || !gpu.computePipeline || !gpu.renderPipeline) {
-      console.log("GPU not initialized");
-      return;
+    if (!gpu || !gpu.isFinalized) {
+      throw new Error("GPU not initialized");
+    }
+
+    if (!simulation) {
+      throw new Error("Simulation not initialized");
     }
 
     windDirectionRad = Utils.randomlyNudgeValue(
@@ -159,21 +174,12 @@
 
     // waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
     // gpu.writeToBuffer(waterSourceHeightBuffer!, waterSourceHeight);
-
     const encoder = gpu.device.createCommandEncoder();
-    const computePass = encoder.beginComputePass();
+    simulation.runComputePass("waterSimulation", encoder, bindGroups[step % 2]);
+    simulation.runComputePass("simulation", encoder, bindGroups[step % 2]);
 
-    computePass.setPipeline(gpu.computePipeline!);
-    computePass.setBindGroup(0, bindGroups[step % 2]);
-    computePass.dispatchWorkgroups(
-      Math.ceil(simulation!.gridSize[0] / WORKGROUP_SIZE),
-      Math.ceil(simulation!.gridSize[1] / WORKGROUP_SIZE),
-    );
-    computePass.end();
+    step++;
 
-    step++; // Increment the step count
-
-    // Start a render pass
     const pass = encoder.beginRenderPass({
       colorAttachments: [
         {
@@ -185,13 +191,11 @@
       ],
     });
 
-    // Draw the grid.
     pass.setPipeline(gpu.renderPipeline!);
     pass.setBindGroup(0, bindGroups[step % 2]);
     pass.setVertexBuffer(0, vertexBuffer);
     pass.draw(vertices.length / 2, simulation!.gridCellCount);
 
-    // End the render pass and submit the command buffer
     pass.end();
     gpu.device.queue.submit([encoder.finish()]);
   }

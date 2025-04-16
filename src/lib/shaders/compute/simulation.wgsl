@@ -1,10 +1,8 @@
 @group(0) @binding({{GridSize}}) var<uniform> grid: vec2f;
 @group(0) @binding({{WindDirection}}) var<uniform> windDirection: vec2f;
 
-@group(0) @binding({{WaterSourceLocation}}) var<uniform> waterSourceLocation: vec2u;
 @group(0) @binding({{WaterSourceHeight}}) var<uniform> waterSourceHeight: f32;
 @group(0) @binding({{WaterStateA}}) var<storage> waterStateIn: array<i32>;
-@group(0) @binding({{WaterStateB}}) var<storage, read_write> waterStateOut: array<i32>;
 
 @group(0) @binding({{ColorsA}}) var<storage> colorsIn: array<f32>;
 @group(0) @binding({{ColorsB}}) var<storage, read_write> colorsOut: array<f32>;
@@ -36,11 +34,6 @@ fn getColor(x: i32, y: i32) -> vec3f {
   return vec3f(colorsIn[index], colorsIn[index + 1], colorsIn[index + 2]);
 }
 
-fn calculateDarkness(color: vec3f) -> f32 {
-  // max darkness (sqrt(3 * 255^2)) is 441.6729559301
-  return length(vec3f(255.0) - color) / 441.6729559301;
-}
-
 fn setColorOut(x: i32, y: i32, color: vec3f) {
   let normalizedColor = clamp(color, vec3f(0.0), vec3f(255.0));
   let index = 3 * cellIndex(x, y);
@@ -62,45 +55,6 @@ fn getWindMovedMaterial(x: i32, y: i32) -> f32 {
 
 fn getWaterState(x: i32, y: i32) -> i32 {
   return waterStateIn[cellIndex(x, y)];
-}
-
-fn hasNeighborWithWater(x: i32, y: i32, value: i32) -> bool {
-  let neighbors = array(
-    vec2(1, 0),   // right
-    vec2(-1, 0),  // left
-    vec2(0, 1),   // up
-    vec2(0, -1)   // down
-  );
-  
-  for (var i = 0u; i < 4u; i = i + 1u) {
-    let offset = neighbors[i];
-    let neighbor = clampCellToGrid(x + offset.x, y + offset.y);
-    if (getWaterState(neighbor.x, neighbor.y) == value) {
-      return true;
-    }
-  }
-  return false;
-}
-
-fn updateWaterSpread(color: vec3f, x: i32, y: i32) -> i32 {
-  let cellIndex = cellIndex(x, y);
-  if (i32(waterSourceLocation.x) == x && i32(waterSourceLocation.y) == y) {
-    waterStateOut[cellIndex] = 1;
-    return 1;
-  }
-
-  let darkness = calculateDarkness(color);
-  if (darkness > waterSourceHeight) {
-    waterStateOut[cellIndex] = 0;
-    return 0;
-  } else if (darkness < waterSourceHeight && hasNeighborWithWater(x, y, 1)) {
-    waterStateOut[cellIndex] = 1;
-    return 1;
-  }
-
-  let currentState = getWaterState(x, y);
-  waterStateOut[cellIndex] = currentState;
-  return currentState;
 }
 
 fn addMaterialFromTool(color: vec3f, x: i32, y: i32) -> vec3f {
@@ -125,13 +79,12 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   let y = i32(cell.y);
   var color = getColor(x, y);
   let darkness = calculateDarkness(color);
-  var waterState = getWaterState(x, y);
 
   if (toolLocation.x != -1.0) {
     color = addMaterialFromTool(color, x, y);
   }
-  waterState = updateWaterSpread(color, x, y);
 
+  var waterState = getWaterState(x, y);
   // If underwater, there is no wind erosion
   if (waterState == 1) {
     let waterDepth = waterSourceHeight - darkness;
