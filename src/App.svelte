@@ -7,7 +7,7 @@
   import { Bindings, Simulation } from "@/lib/services/simulation.svelte";
   import Canvas from "@/lib/components/Canvas.svelte";
   import FileControls from "@/lib/components/FileControls.svelte";
-
+  import DrawingControls from "@/lib/components/DrawingControls.svelte";
   const UPDATE_INTERVAL = 50;
   const WORKGROUP_SIZE = 8;
   const MAXIMUM_HEIGHT = 1000;
@@ -229,5 +229,6 @@
     windDirection={windDirectionRad}
     onPlayToggled={(play: boolean) => (isPlaying = play)}
   />
+  <DrawingControls></DrawingControls>
   <Canvas {onBrushMove} bind:canvas></Canvas>
 </main>

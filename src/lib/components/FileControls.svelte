@@ -1,5 +1,6 @@
 <script lang="ts">
   import Button from "@/lib/components/Button.svelte";
+  import Panel from "@/lib/components/Panel.svelte";
 
   interface Props {
     isPlaying: boolean;
@@ -10,10 +11,7 @@
   let { isPlaying, onPlayToggled, windDirection }: Props = $props();
 </script>
 
-<header
-  class="z-10 absolute top-0 left-0 flex p-3 gap-2 bg-gray-100 rounded-ee-lg
-"
->
+<Panel tag="header" class="top-0 left-0 rounded-ee-lg">
   <div class="w-10 h-8 flex items-center justify-center">
     <span
       class="icon text-black"
@@ -27,4 +25,4 @@
     ariaLabel={isPlaying ? "Pause" : "Play"}
     onclick={() => onPlayToggled(!isPlaying)}
   />
-</header>
+</Panel>

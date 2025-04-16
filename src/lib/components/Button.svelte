@@ -1,11 +1,12 @@
 <script lang="ts">
   interface Props {
-    icon: string;
+    icon?: string;
     ariaLabel?: string;
     onclick?: () => void;
+    children?: () => any;
   }
 
-  const { icon, ariaLabel, onclick }: Props = $props();
+  const { icon, ariaLabel, onclick, children }: Props = $props();
 </script>
 
 <button
@@ -16,7 +17,8 @@
   aria-label={ariaLabel}
   {onclick}
 >
-  <div>
-    {icon}
-  </div>
+  {#if icon}
+    <div class="icon">{icon}</div>
+  {/if}
+  {@render children?.()}
 </button>
