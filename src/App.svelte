@@ -8,11 +8,12 @@
   import shaderUtils from "@/lib/shaders/compute/utils.wgsl?raw";
   import { Simulation, WORKGROUP_SIZE } from "@/lib/services/simulation.svelte";
   import { Drawing, Tools } from "@/lib/services/drawing";
+  import drawingShader from "@/lib/shaders/compute/drawing.wgsl?raw";
   import Canvas from "@/lib/components/Canvas.svelte";
   import FileControls from "@/lib/components/FileControls.svelte";
   import DrawingControls from "@/lib/components/DrawingControls.svelte";
 
-  const UPDATE_INTERVAL = 50;
+  const UPDATE_INTERVAL = 1000 / 120;
   const WIND_DIRECTION_VARIABILITY = 0.4;
 
   let canvas: HTMLCanvasElement | null = $state(null);
@@ -20,12 +21,14 @@
   let simulation: Simulation | null = $state(null);
   let drawing: Drawing | null = $state(null);
 
-  let step = $state(0);
+  let step = 0;
+  let renderStep = 0;
+
   let windDirectionRad = $state(Utils.pickRandomDirection());
   let windDirectionBuffer: GPUBuffer | null = null;
   let waterSourceHeight = $state(new Float32Array([0.01]));
   let waterSourceHeightBuffer: GPUBuffer | null = null;
-  let waterSourceLocation = $state(new Int32Array([8, 8]));
+  let waterSourceLocation = $state(new Int32Array([-1, -1]));
   let vertices = Utils.getVerticesForSquare();
   let vertexBuffer: GPUBuffer | null = null;
 
@@ -100,6 +103,11 @@
       { WORKGROUP_SIZE: WORKGROUP_SIZE.toString(), ...Bindings },
     );
 
+    const drawingShaderModule = gpu.createShaderModule(
+      { code: shaderUtils + drawingShader },
+      { WORKGROUP_SIZE: WORKGROUP_SIZE.toString(), ...Bindings },
+    );
+
     const cellShaderModule = gpu.createShaderModule(
       { code: shaderUtils + cellShader },
       { ...Bindings },
@@ -114,6 +122,10 @@
         },
         waterSimulation: {
           module: waterSimulationShaderModule,
+          entryPoint: "computeMain",
+        },
+        drawing: {
+          module: drawingShaderModule,
           entryPoint: "computeMain",
         },
       },
@@ -175,10 +187,19 @@
     // waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
     // gpu.writeToBuffer(waterSourceHeightBuffer!, waterSourceHeight);
     const encoder = gpu.device.createCommandEncoder();
-    simulation.runComputePass("waterSimulation", encoder, bindGroups[step % 2]);
-    simulation.runComputePass("simulation", encoder, bindGroups[step % 2]);
+    simulation.runComputePass("drawing", encoder, bindGroups[renderStep % 2]);
 
-    step++;
+    if (renderStep % 6 === 0 && isPlaying) {
+      simulation.runComputePass(
+        "waterSimulation",
+        encoder,
+        bindGroups[step % 2],
+      );
+      simulation.runComputePass("simulation", encoder, bindGroups[step % 2]);
+      step++;
+    }
+
+    renderStep++;
 
     const pass = encoder.beginRenderPass({
       colorAttachments: [

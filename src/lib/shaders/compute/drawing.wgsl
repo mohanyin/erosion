@@ -7,6 +7,19 @@
 @group(0) @binding({{ColorsA}}) var<storage> colorsIn: array<f32>;
 @group(0) @binding({{ColorsB}}) var<storage, read_write> colorsOut: array<f32>;
 
+@group(0) @binding({{Tool}}) var<uniform> tool: i32;
+@group(0) @binding({{ToolLocation}}) var<uniform> toolLocation: vec2f;
+@group(0) @binding({{ToolColor}}) var<uniform> toolColor: vec3f;
+@group(0) @binding({{ToolSize}}) var<uniform> toolSize: f32;
+@group(0) @binding({{ToolOpacity}}) var<uniform> toolOpacity: f32;
+
+const PENCIL = 0;
+const PEN = 1;
+const MARKER = 2;
+const BRUSH = 3;
+const WATER = 4;
+const WIND_EROSION = 5;
+
 fn clampCellToGrid(x: i32, y: i32) -> vec2i {
   return vec2i(clamp(x, 0, i32(grid.x) - 1), clamp(y, 0, i32(grid.y) - 1));
 }
@@ -44,6 +57,21 @@ fn getWaterState(x: i32, y: i32) -> i32 {
   return waterStateIn[cellIndex(x, y)];
 }
 
+fn addMaterialFromTool(color: vec3f, x: i32, y: i32) -> vec3f {
+  let distanceToTool = distance(vec2f(f32(x), f32(y)), toolLocation - 0.5);
+
+  if (tool == PENCIL || tool == PEN) {
+    if (distanceToTool < toolSize) {
+      let colorDifference = color - toolColor;
+      let change = toolOpacity * colorDifference;
+
+      return clamp(color - change, vec3f(0.0), vec3f(255.0));
+    }
+  }
+
+  return color;
+}
+
 @compute
 @workgroup_size({{WORKGROUP_SIZE}}, {{WORKGROUP_SIZE}})
 fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
@@ -52,45 +80,17 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   var color = getColor(x, y);
   let darkness = calculateDarkness(color);
 
-  var waterState = getWaterState(x, y);
-  // If underwater, there is no wind erosion
-  if (waterState == 1) {
-    let waterDepth = waterSourceHeight - darkness;
-    let waterRemovedMaterial = clamp(20.0 - waterDepth * 20, 0.0, 255.0);
-    setColorOut(x, y, color + vec3f(waterRemovedMaterial));
-    return;
+  if (toolLocation.x != -1.0) {
+    let distanceToTool = distance(vec2f(f32(x), f32(y)), toolLocation - 0.5);
+
+    if (tool == PENCIL || tool == PEN) {
+      if (distanceToTool < toolSize) {
+        let colorDifference = color - toolColor;
+        let change = toolOpacity * colorDifference;
+
+        let newColor = clamp(color - change, vec3f(0.0), vec3f(255.0));
+        setColorOut(x, y, newColor);
+      }
+    }
   }
-
-  // Removed material from wind erosion
-  let removedMaterial = getWindMovedMaterial(x, y);
-
-  // Added material from wind erosion from neighboring cells
-  var addedMaterial = 0.0;
-  let windNormalized = normalize(windDirection);
-  let windXAmount = pow(abs(windNormalized.x), 2);
-  let windYAmount = pow(abs(windNormalized.y), 2);
-
-  if (windDirection.x > 0.0) {
-    addedMaterial += windXAmount * getWindMovedMaterial(x - 1, y);
-  } else {
-    addedMaterial += windXAmount * getWindMovedMaterial(x + 1, y);
-  }
-
-  if (windDirection.y > 0.0) {
-    addedMaterial += windYAmount * getWindMovedMaterial(x, y + 1);
-  } else {
-    addedMaterial += windYAmount * getWindMovedMaterial(x, y - 1);
-  }
-
-  // Removed material from being near water
-  var waterRemovedMaterial = 0.0;
-  if (waterState == 1) {
-    let waterDepth = waterSourceHeight - darkness;
-    waterRemovedMaterial = max(20.0 - waterDepth * 4, 0.0);
-  } else if (getWaterState(x, y - 1) == 1) {
-    waterRemovedMaterial = 3.0;
-  }
-
-  let delta = removedMaterial + addedMaterial - waterRemovedMaterial;
-  setColorOut(x, y, color + vec3f(delta));
 }
