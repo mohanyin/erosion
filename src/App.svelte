@@ -34,9 +34,9 @@
   let toolLocationBuffer: GPUBuffer | null = null;
   let toolColor: Float32Array = $state(new Float32Array([35, 25, 100]));
   let toolColorBuffer: GPUBuffer | null = null;
-  let toolSize: Float32Array = $state(new Float32Array([12]));
+  let toolSize: Float32Array = $state(new Float32Array([24]));
   let toolSizeBuffer: GPUBuffer | null = null;
-  let toolOpacity: Float32Array = $state(new Float32Array([1]));
+  let toolOpacity: Float32Array = $state(new Float32Array([0.6]));
   let toolOpacityBuffer: GPUBuffer | null = null;
 
   onMount(async () => {
@@ -165,8 +165,10 @@
 
     computePass.setPipeline(gpu.computePipeline!);
     computePass.setBindGroup(0, bindGroups[step % 2]);
-    const workgroupCount = Math.ceil(simulation!.gridSize[0] / WORKGROUP_SIZE);
-    computePass.dispatchWorkgroups(workgroupCount, workgroupCount);
+    computePass.dispatchWorkgroups(
+      Math.ceil(simulation!.gridSize[0] / WORKGROUP_SIZE),
+      Math.ceil(simulation!.gridSize[1] / WORKGROUP_SIZE),
+    );
     computePass.end();
 
     step++; // Increment the step count
@@ -220,6 +222,7 @@
         simulation!.gridSize[1] -
           (location[1] / canvas!.clientHeight) * simulation!.gridSize[1],
       ]);
+      console.log(remappedLocation);
       toolLocation = remappedLocation;
       isDrawing = true;
     } else {
