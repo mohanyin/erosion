@@ -1,9 +1,11 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
+
   export interface Props {
     icon?: string;
     ariaLabel?: string;
     onclick?: () => void;
-    children?: () => any;
+    children?: Snippet;
   }
 
   const { icon, ariaLabel, onclick, children }: Props = $props();

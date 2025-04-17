@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { SimulationGPU, Bindings } from "@/lib/services/web-gpu";
-  import Utils from "@/lib/services/utils";
+  import utils from "@/lib/services/utils";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import cellShader from "@/lib/shaders/cell.wgsl?raw";
   import waterSimulationShader from "@/lib/shaders/compute/water-simulation.wgsl?raw";
@@ -24,15 +24,17 @@
   let step = 0;
   let renderStep = 0;
 
-  let windDirectionRad = $state(Utils.pickRandomDirection());
+  let windDirectionRad = $state(utils.pickRandomDirection());
   let windDirectionBuffer: GPUBuffer | null = null;
   let waterSourceHeight = $state(new Float32Array([0.01]));
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let waterSourceHeightBuffer: GPUBuffer | null = null;
   let waterSourceLocation = $state(new Int32Array([-1, -1]));
-  let vertices = Utils.getVerticesForSquare();
+  let vertices = utils.getVerticesForSquare();
   let vertexBuffer: GPUBuffer | null = null;
 
   let tool = $state(Tools.Pencil);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let toolBuffer: GPUBuffer | null = null;
   let toolLocation: Float32Array = $state(new Float32Array([-1, -1]));
   let toolLocationBuffer: GPUBuffer | null = null;
@@ -177,11 +179,11 @@
       throw new Error("Simulation not initialized");
     }
 
-    windDirectionRad = Utils.randomlyNudgeValue(
+    windDirectionRad = utils.randomlyNudgeValue(
       windDirectionRad,
       WIND_DIRECTION_VARIABILITY,
     );
-    const windDirection = Utils.convertRadiansToVector(windDirectionRad);
+    const windDirection = utils.convertRadiansToVector(windDirectionRad);
     gpu.writeToBuffer(windDirectionBuffer!, windDirection);
 
     // waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);

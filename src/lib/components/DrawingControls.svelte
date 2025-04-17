@@ -4,7 +4,6 @@
   import Panel from "@/lib/components/Panel.svelte";
   import StrokeWidth from "@/assets/icons/StrokeWidth.svelte";
   import Opacity from "@/assets/icons/Opacity.svelte";
-  import { derived } from "svelte/store";
   import convert from "color-convert";
 
   interface Props {
@@ -63,16 +62,13 @@
   tag="footer"
   class="bottom-0 left-[50%] translate-x-[-50%] rounded-se-lg rounded-ss-lg"
 >
-  <Button icon={"stylus_pencil"} ariaLabel={"Pencil"} />
-  <Button icon={"water"} ariaLabel={"Paint with water"} />
-  <Button icon={"air"} ariaLabel={"Erode with air"} />
+  <Button icon="stylus_pencil" ariaLabel="Pencil" />
+  <Button icon="water" ariaLabel="Paint with water" />
+  <Button icon="air" ariaLabel="Erode with air" />
 
   <div class="w-[1px] h-fill bg-gray-300"></div>
 
-  <ButtonWithPopover
-    ariaLabel={"Stroke width"}
-    button={strokeWidthButtonContent}
-  >
+  <ButtonWithPopover ariaLabel="Stroke width" button={strokeWidthButtonContent}>
     <input
       type="range"
       min="0"
@@ -82,7 +78,7 @@
         onToolSizeChange(new Float32Array([Number(event.target!.value)]))}
     />
   </ButtonWithPopover>
-  <ButtonWithPopover ariaLabel={"Opacity"} button={opacityButtonContent}>
+  <ButtonWithPopover ariaLabel="Opacity" button={opacityButtonContent}>
     <input
       type="range"
       min="0"
@@ -97,7 +93,7 @@
 
   <div class="w-[1px] h-fill bg-gray-300"></div>
 
-  <ButtonWithPopover ariaLabel={"Hue"} button={hueButtonContent}>
+  <ButtonWithPopover ariaLabel="Hue" button={hueButtonContent}>
     <input
       type="range"
       min="0"
@@ -106,7 +102,7 @@
       onchange={(event) => onColorChange([Number(event.target!.value)])}
     />
   </ButtonWithPopover>
-  <ButtonWithPopover ariaLabel={"Saturation"} button={saturationButtonContent}>
+  <ButtonWithPopover ariaLabel="Saturation" button={saturationButtonContent}>
     <input
       type="range"
       min="0"
@@ -116,7 +112,7 @@
         onColorChange([undefined, Number(event.target!.value)])}
     />
   </ButtonWithPopover>
-  <ButtonWithPopover ariaLabel={"Lightness"} button={lightnessButtonContent}>
+  <ButtonWithPopover ariaLabel="Lightness" button={lightnessButtonContent}>
     <input
       type="range"
       min="0"

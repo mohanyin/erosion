@@ -1,11 +1,12 @@
 <script lang="ts">
   import Button from "@/lib/components/Button.svelte";
+  import type { Snippet } from "svelte";
 
   interface Props {
     icon?: string;
     ariaLabel?: string;
-    children?: () => any;
-    button?: () => any;
+    children?: Snippet;
+    button?: Snippet;
   }
 
   let { icon, ariaLabel, children, button }: Props = $props();
