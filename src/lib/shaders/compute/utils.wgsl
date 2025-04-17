@@ -1,4 +1,5 @@
+const LUMINANCE_COEFFICIENTS = vec3f(0.299, 0.587, 0.114);
+
 fn calculateDarkness(color: vec3f) -> f32 {
-  // max darkness (sqrt(3 * 255^2)) is 441.6729559301
-  return length(vec3f(255.0) - color) / 441.6729559301;
+  return 1 - dot(color / 255.0, LUMINANCE_COEFFICIENTS);
 }

@@ -7,6 +7,8 @@
 @group(0) @binding({{ColorsA}}) var<storage> colorsIn: array<f32>;
 @group(0) @binding({{ColorsB}}) var<storage, read_write> colorsOut: array<f32>;
 
+const RGB_EROSION_FACTORS = vec3f(0.3, 0.25, 0.2);
+
 fn clampCellToGrid(x: i32, y: i32) -> vec2i {
   return vec2i(clamp(x, 0, i32(grid.x) - 1), clamp(y, 0, i32(grid.y) - 1));
 }
@@ -29,15 +31,17 @@ fn setColorOut(x: i32, y: i32, color: vec3f) {
   colorsOut[index + 2] = normalizedColor.z;
 }
 
-fn getWindMovedMaterial(x: i32, y: i32) -> f32 {
-  let state = calculateDarkness(getColor(x, y));
+fn getWindMovedMaterial(x: i32, y: i32) -> vec3f {
+  let color = getColor(x, y);
+  let state = calculateDarkness(color);
   let left = calculateDarkness(getColor(x-1, y));
   let right = calculateDarkness(getColor(x+1, y));
   let up = calculateDarkness(getColor(x, y+1));
   let down = calculateDarkness(getColor(x, y-1));
 
   let localMaximaFactor = state - (left + right + up + down) / 4.0;
-  return clamp(localMaximaFactor * 200, 0.0, 10.0);
+  let scalingFactors = clamp(vec3f(localMaximaFactor) * color * RGB_EROSION_FACTORS, vec3f(0.0), vec3f(10.0));
+  return scalingFactors;
 }
 
 fn getWaterState(x: i32, y: i32) -> i32 {
@@ -65,7 +69,7 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   let removedMaterial = getWindMovedMaterial(x, y);
 
   // Added material from wind erosion from neighboring cells
-  var addedMaterial = 0.0;
+  var addedMaterial = vec3f(0.0);
   let windNormalized = normalize(windDirection);
   let windXAmount = pow(abs(windNormalized.x), 2);
   let windYAmount = pow(abs(windNormalized.y), 2);
@@ -91,6 +95,6 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
     waterRemovedMaterial = 3.0;
   }
 
-  let delta = removedMaterial + addedMaterial - waterRemovedMaterial;
-  setColorOut(x, y, color + vec3f(delta));
+  let delta = removedMaterial + addedMaterial - vec3f(waterRemovedMaterial);
+  setColorOut(x, y, color + delta);
 }

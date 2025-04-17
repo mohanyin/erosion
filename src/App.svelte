@@ -15,7 +15,7 @@
   import waterSimulationShader from "@/lib/shaders/compute/water-simulation.wgsl?raw";
 
   const UPDATE_INTERVAL = 1000 / 120;
-  const WIND_DIRECTION_VARIABILITY = 0.4;
+  const WIND_DIRECTION_VARIABILITY = 0.1;
 
   let canvas: HTMLCanvasElement | null = $state(null);
   let gpu: SimulationGPU | null = $state(null);
