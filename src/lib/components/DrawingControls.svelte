@@ -1,10 +1,11 @@
 <script lang="ts">
+  import convert from "color-convert";
+
+  import Opacity from "@/assets/icons/Opacity.svelte";
+  import StrokeWidth from "@/assets/icons/StrokeWidth.svelte";
   import Button from "@/lib/components/Button.svelte";
   import ButtonWithPopover from "@/lib/components/ButtonWithPopover.svelte";
   import Panel from "@/lib/components/Panel.svelte";
-  import StrokeWidth from "@/assets/icons/StrokeWidth.svelte";
-  import Opacity from "@/assets/icons/Opacity.svelte";
-  import convert from "color-convert";
 
   interface Props {
     toolColor: Float32Array;

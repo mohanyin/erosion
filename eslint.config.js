@@ -1,10 +1,11 @@
-import { defineConfig } from "eslint/config";
-import globals from "globals";
 import js from "@eslint/js";
-import { parser as tsParser, configs as tsConfigs } from "typescript-eslint";
+import { defineConfig } from "eslint/config";
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 import importPlugin from "eslint-plugin-import";
 import svelte from "eslint-plugin-svelte";
+import globals from "globals";
+import { parser as tsParser, configs as tsConfigs } from "typescript-eslint";
+
 import svelteConfig from "./svelte.config.js";
 
 export default defineConfig([
@@ -34,6 +35,15 @@ export default defineConfig([
   importPlugin.flatConfigs.recommended,
   importPlugin.flatConfigs.typescript,
   {
+    rules: {
+      "import/order": [
+        "error",
+        {
+          "newlines-between": "always",
+          alphabetize: { order: "asc", caseInsensitive: true },
+        },
+      ],
+    },
     settings: {
       "import/resolver": {
         typescript: true,

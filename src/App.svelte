@@ -1,17 +1,18 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { SimulationGPU, Bindings } from "@/lib/services/web-gpu";
-  import utils from "@/lib/services/utils";
-  import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
-  import cellShader from "@/lib/shaders/cell.wgsl?raw";
-  import waterSimulationShader from "@/lib/shaders/compute/water-simulation.wgsl?raw";
-  import shaderUtils from "@/lib/shaders/compute/utils.wgsl?raw";
-  import { Simulation, WORKGROUP_SIZE } from "@/lib/services/simulation.svelte";
-  import { Drawing, Tools } from "@/lib/services/drawing";
-  import drawingShader from "@/lib/shaders/compute/drawing.wgsl?raw";
+
   import Canvas from "@/lib/components/Canvas.svelte";
-  import FileControls from "@/lib/components/FileControls.svelte";
   import DrawingControls from "@/lib/components/DrawingControls.svelte";
+  import FileControls from "@/lib/components/FileControls.svelte";
+  import { Drawing, Tools } from "@/lib/services/drawing";
+  import { Simulation, WORKGROUP_SIZE } from "@/lib/services/simulation.svelte";
+  import utils from "@/lib/services/utils";
+  import { SimulationGPU, Bindings } from "@/lib/services/web-gpu";
+  import cellShader from "@/lib/shaders/cell.wgsl?raw";
+  import drawingShader from "@/lib/shaders/compute/drawing.wgsl?raw";
+  import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
+  import shaderUtils from "@/lib/shaders/compute/utils.wgsl?raw";
+  import waterSimulationShader from "@/lib/shaders/compute/water-simulation.wgsl?raw";
 
   const UPDATE_INTERVAL = 1000 / 120;
   const WIND_DIRECTION_VARIABILITY = 0.4;
