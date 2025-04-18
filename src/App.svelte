@@ -10,6 +10,7 @@
   import { SimulationGPU, Bindings } from "@/lib/services/web-gpu";
   import cellShader from "@/lib/shaders/cell.wgsl?raw";
   import drawingShader from "@/lib/shaders/compute/drawing.wgsl?raw";
+  import preSimulationShader from "@/lib/shaders/compute/pre-simulation.wgsl?raw";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import shaderUtils from "@/lib/shaders/compute/utils.wgsl?raw";
   import waterSimulationShader from "@/lib/shaders/compute/water-simulation.wgsl?raw";
@@ -76,10 +77,9 @@
       ],
     });
 
-    const cellStateArray = new Float32Array(simulation.gridCellCount * 3).fill(
-      255,
+    simulation.createColorBuffers(
+      new Float32Array(simulation.gridCellCount * 4).fill(255.0),
     );
-    simulation.createColorBuffers(cellStateArray);
 
     waterSourceHeightBuffer =
       simulation.createWaterSourceHeightBuffer(waterSourceHeight);
@@ -89,12 +89,21 @@
     waterStateArray[waterSourceIndex] = 1;
     simulation.createWaterStateBuffers(waterStateArray);
 
+    simulation.createMovedMaterialBuffer(
+      new Float32Array(4 * simulation.gridCellCount).fill(-1.0),
+    );
+
     drawing = new Drawing(gpu);
     toolBuffer = drawing.createToolBuffer(new Int32Array([tool]));
     toolLocationBuffer = drawing.createToolLocationBuffer(toolLocation);
     toolColorBuffer = drawing.createToolColorBuffer(toolColor);
     toolSizeBuffer = drawing.createToolSizeBuffer(toolSize);
     toolOpacityBuffer = drawing.createToolOpacityBuffer(toolOpacity);
+
+    const preSimulationShaderModule = gpu.createShaderModule(
+      { code: shaderUtils + preSimulationShader },
+      { WORKGROUP_SIZE: WORKGROUP_SIZE.toString(), ...Bindings },
+    );
 
     const simulationShaderModule = gpu.createShaderModule(
       { code: shaderUtils + simulationShader },
@@ -119,6 +128,10 @@
     gpu.finalizePipelines({
       label: "Simulation",
       compute: {
+        preSimulation: {
+          module: preSimulationShaderModule,
+          entryPoint: "computeMain",
+        },
         simulation: {
           module: simulationShaderModule,
           entryPoint: "computeMain",
@@ -190,15 +203,18 @@
     // waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
     // gpu.writeToBuffer(waterSourceHeightBuffer!, waterSourceHeight);
     const encoder = gpu.device.createCommandEncoder();
-    simulation.runComputePass("drawing", encoder, bindGroups[renderStep % 2]);
+    const currentBindGroup = bindGroups[renderStep % 2];
+    simulation.runComputePass("drawing", encoder, currentBindGroup);
 
     if (renderStep % 6 === 0 && isPlaying) {
+      const simulationBindGroup = bindGroups[step % 2];
+      simulation.runComputePass("preSimulation", encoder, simulationBindGroup);
       simulation.runComputePass(
         "waterSimulation",
         encoder,
-        bindGroups[step % 2],
+        simulationBindGroup,
       );
-      simulation.runComputePass("simulation", encoder, bindGroups[step % 2]);
+      simulation.runComputePass("simulation", encoder, simulationBindGroup);
       step++;
     }
 

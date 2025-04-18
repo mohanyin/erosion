@@ -99,6 +99,16 @@ export class Simulation {
     ];
   }
 
+  createMovedMaterialBuffer(data: Float32Array) {
+    return this.gpu.createStorageBuffer({
+      data,
+      label: "Moved Material",
+      binding: Bindings.MovedMaterial,
+      visibility: GPUShaderStage.COMPUTE,
+      readonly: false,
+    });
+  }
+
   runComputePass(
     pipelineName: string,
     encoder: GPUCommandEncoder,

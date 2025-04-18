@@ -12,6 +12,7 @@ export const Bindings = {
   ToolSize: 10,
   ToolLocation: 11,
   ToolOpacity: 12,
+  MovedMaterial: 13,
 } as const;
 
 export class BaseGPU {

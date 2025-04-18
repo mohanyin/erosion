@@ -7,7 +7,9 @@
 @group(0) @binding({{ColorsA}}) var<storage> colorsIn: array<f32>;
 @group(0) @binding({{ColorsB}}) var<storage, read_write> colorsOut: array<f32>;
 
-const RGB_EROSION_FACTORS = vec3f(0.3, 0.25, 0.2);
+@group(0) @binding({{MovedMaterial}}) var<storage, read_write> movedMaterial: array<vec3f>;
+
+const RGB_EROSION_FACTORS = vec3f(1.3, 1.25, 1.1);
 
 fn clampCellToGrid(x: i32, y: i32) -> vec2i {
   return vec2i(clamp(x, 0, i32(grid.x) - 1), clamp(y, 0, i32(grid.y) - 1));
@@ -32,6 +34,11 @@ fn setColorOut(x: i32, y: i32, color: vec3f) {
 }
 
 fn getWindMovedMaterial(x: i32, y: i32) -> vec3f {
+  let index = cellIndex(x, y);
+  if (movedMaterial[index].r != RESET) {
+    return movedMaterial[index];
+  }
+
   let color = getColor(x, y);
   let state = calculateDarkness(color);
   let left = calculateDarkness(getColor(x-1, y));
@@ -40,8 +47,9 @@ fn getWindMovedMaterial(x: i32, y: i32) -> vec3f {
   let down = calculateDarkness(getColor(x, y-1));
 
   let localMaximaFactor = state - (left + right + up + down) / 4.0;
-  let scalingFactors = clamp(vec3f(localMaximaFactor) * color * RGB_EROSION_FACTORS, vec3f(0.0), vec3f(10.0));
-  return scalingFactors;
+  let moved = clamp(vec3f(localMaximaFactor) * color * RGB_EROSION_FACTORS, vec3f(0.0), vec3f(200.0));
+  movedMaterial[index] = moved;
+  return moved;
 }
 
 fn getWaterState(x: i32, y: i32) -> i32 {
