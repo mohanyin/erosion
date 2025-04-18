@@ -11,7 +11,7 @@ struct VertexOutput {
 };
 
 @group(0) @binding({{GridSize}}) var<uniform> grid: vec2f;
-@group(0) @binding({{ColorsA}}) var<storage> colors: array<f32>;
+@group(0) @binding({{ColorsA}}) var<storage> colors: array<vec3f>;
 @group(0) @binding({{WaterStateA}}) var<storage> waterState: array<i32>;
 @group(0) @binding({{ToolLocation}}) var<uniform> toolLocation: vec2f;
 
@@ -27,8 +27,7 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
   output.cell = cell;
   output.instance = input.instance;
 
-  let colorIndex = 3 * input.instance;
-  output.color = vec3f(colors[colorIndex], colors[colorIndex + 1], colors[colorIndex + 2]);
+  output.color = colors[input.instance];
   return output;
 }
 

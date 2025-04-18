@@ -4,10 +4,8 @@
 @group(0) @binding({{WaterSourceHeight}}) var<uniform> waterSourceHeight: f32;
 @group(0) @binding({{WaterStateA}}) var<storage> waterStateIn: array<i32>;
 
-@group(0) @binding({{ColorsA}}) var<storage> colorsIn: array<f32>;
-@group(0) @binding({{ColorsB}}) var<storage, read_write> colorsOut: array<f32>;
-
-@group(0) @binding({{MovedMaterial}}) var<storage, read_write> movedMaterial: array<f32>;
+@group(0) @binding({{ColorsA}}) var<storage> colorsIn: array<vec3f>;
+@group(0) @binding({{ColorsB}}) var<storage, read_write> colorsOut: array<vec3f>;
 
 @group(0) @binding({{Tool}}) var<uniform> tool: i32;
 @group(0) @binding({{ToolLocation}}) var<uniform> toolLocation: vec2f;
@@ -31,25 +29,12 @@ fn cellIndex(x: i32, y: i32) -> u32 {
   return (u32(clampedCell.y) * u32(grid.x) + u32(clampedCell.x));
 }
 
-fn getColor(x: i32, y: i32) -> vec3f {
-  let index = 3 * cellIndex(x, y);
-  return vec3f(colorsIn[index], colorsIn[index + 1], colorsIn[index + 2]);
-}
-
-fn setColorOut(x: i32, y: i32, color: vec3f) {
-  let normalizedColor = clamp(color, vec3f(0.0), vec3f(255.0));
-  let index = 3 * cellIndex(x, y);
-  colorsOut[index] = normalizedColor.x;
-  colorsOut[index + 1] = normalizedColor.y;
-  colorsOut[index + 2] = normalizedColor.z;
-}
-
 @compute
 @workgroup_size({{WORKGROUP_SIZE}}, {{WORKGROUP_SIZE}})
 fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   let x = i32(cell.x);
   let y = i32(cell.y);
-  var color = getColor(x, y);
+  var color = colorsIn[cellIndex(x, y)];
   let darkness = calculateDarkness(color);
 
   if (toolLocation.x != RESET) {
@@ -62,7 +47,7 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
 
         let change = toolOpacity * colorDifference * distanceFactor;
         let newColor = clamp(color - change, vec3f(0.0), vec3f(255.0));
-        setColorOut(x, y, newColor);
+        colorsOut[cellIndex(x, y)] = newColor;
       }
     }
   }

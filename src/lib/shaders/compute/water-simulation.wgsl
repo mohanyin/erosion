@@ -5,8 +5,7 @@
 @group(0) @binding({{WaterStateA}}) var<storage> waterStateIn: array<i32>;
 @group(0) @binding({{WaterStateB}}) var<storage, read_write> waterStateOut: array<i32>;
 
-@group(0) @binding({{ColorsA}}) var<storage> colorsIn: array<f32>;
-@group(0) @binding({{ColorsB}}) var<storage, read_write> colorsOut: array<f32>;
+@group(0) @binding({{ColorsA}}) var<storage> colorsIn: array<vec3f>;
 
 fn clampCellToGrid(x: i32, y: i32) -> vec2i {
   return vec2i(clamp(x, 0, i32(grid.x) - 1), clamp(y, 0, i32(grid.y) - 1));
@@ -15,11 +14,6 @@ fn clampCellToGrid(x: i32, y: i32) -> vec2i {
 fn cellIndex(x: i32, y: i32) -> u32 {
   let clampedCell = clampCellToGrid(x, y);
   return (u32(clampedCell.y) * u32(grid.x) + u32(clampedCell.x));
-}
-
-fn getColor(x: i32, y: i32) -> vec3f {
-  let index = 3 * cellIndex(x, y);
-  return vec3f(colorsIn[index], colorsIn[index + 1], colorsIn[index + 2]);
 }
 
 fn getWaterState(x: i32, y: i32) -> i32 {
@@ -52,9 +46,10 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   let cellIndex = cellIndex(x, y);
   if (i32(waterSourceLocation.x) == x && i32(waterSourceLocation.y) == y) {
     waterStateOut[cellIndex] = 1;
+    return;
   }
 
-  let darkness = calculateDarkness(getColor(x, y));
+  let darkness = calculateDarkness(colorsIn[cellIndex]);
   if (darkness > waterSourceHeight) {
     waterStateOut[cellIndex] = 0;
     return;
