@@ -1,5 +1,4 @@
 @group(0) @binding({{GridSize}}) var<uniform> grid: vec2f;
-@group(0) @binding({{WindDirection}}) var<uniform> windDirection: vec2f;
 
 @group(0) @binding({{WaterSourceHeight}}) var<uniform> waterSourceHeight: f32;
 @group(0) @binding({{WaterStateA}}) var<storage> waterStateIn: array<i32>;

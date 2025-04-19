@@ -15,7 +15,7 @@
   import shaderUtils from "@/lib/shaders/compute/utils.wgsl?raw";
   import waterSimulationShader from "@/lib/shaders/compute/water-simulation.wgsl?raw";
 
-  const UPDATE_INTERVAL = 1000 / 120;
+  const UPDATE_INTERVAL = 1000 / 60;
   const WIND_DIRECTION_VARIABILITY = 0.1;
 
   let canvas: HTMLCanvasElement | null = $state(null);
@@ -24,9 +24,8 @@
   let drawing: Drawing | null = $state(null);
 
   let step = 0;
-  let renderStep = 0;
 
-  let windDirectionRad = $state(utils.pickRandomDirection());
+  let windDirection = $state(Math.random() * 2 * Math.PI);
   let windDirectionBuffer: GPUBuffer | null = null;
   let waterSourceHeight = $state(new Float32Array([0.01]));
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -60,8 +59,9 @@
     simulation = new Simulation(gpu);
     simulation.createGridSizeBuffer();
 
-    const windDirection = new Float32Array([0.0, 1.0]);
-    windDirectionBuffer = simulation.createWindDirectionBuffer(windDirection);
+    windDirectionBuffer = simulation.createWindDirectionBuffer(
+      new Float32Array(windDirection),
+    );
 
     simulation.createWaterSourceLocationBuffer(waterSourceLocation);
 
@@ -193,32 +193,26 @@
       throw new Error("Simulation not initialized");
     }
 
-    windDirectionRad = utils.randomlyNudgeValue(
-      windDirectionRad,
-      WIND_DIRECTION_VARIABILITY,
-    );
-    const windDirection = utils.convertRadiansToVector(windDirectionRad);
-    gpu.writeToBuffer(windDirectionBuffer!, windDirection);
+    windDirection =
+      utils.randomlyNudgeValue(windDirection, WIND_DIRECTION_VARIABILITY) %
+      (2 * Math.PI);
+    gpu.writeToBuffer(windDirectionBuffer!, new Float32Array([windDirection]));
 
     // waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
     // gpu.writeToBuffer(waterSourceHeightBuffer!, waterSourceHeight);
+
     const encoder = gpu.device.createCommandEncoder();
-    const currentBindGroup = bindGroups[renderStep % 2];
+
+    const simulationBindGroup = bindGroups[step % 2];
+    simulation.runComputePass("preSimulation", encoder, simulationBindGroup);
+    simulation.runComputePass("waterSimulation", encoder, simulationBindGroup);
+    simulation.runComputePass("simulation", encoder, simulationBindGroup);
+
+    // TODO: DON'T OVERWRITE EROSION
+    const currentBindGroup = bindGroups[step % 2];
     simulation.runComputePass("drawing", encoder, currentBindGroup);
 
-    if (renderStep % 6 === 0 && isPlaying) {
-      const simulationBindGroup = bindGroups[step % 2];
-      simulation.runComputePass("preSimulation", encoder, simulationBindGroup);
-      simulation.runComputePass(
-        "waterSimulation",
-        encoder,
-        simulationBindGroup,
-      );
-      simulation.runComputePass("simulation", encoder, simulationBindGroup);
-      step++;
-    }
-
-    renderStep++;
+    step++;
 
     const pass = encoder.beginRenderPass({
       colorAttachments: [
@@ -302,7 +296,7 @@
 <main>
   <FileControls
     {isPlaying}
-    windDirection={windDirectionRad}
+    {windDirection}
     onPlayToggled={(play: boolean) => (isPlaying = play)}
   />
   <DrawingControls
