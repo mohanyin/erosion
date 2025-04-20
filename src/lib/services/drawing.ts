@@ -27,7 +27,7 @@ export class Drawing {
   }
 
   createToolLocationBuffer(data: Float32Array) {
-    return this.gpu.createUniformBuffer({
+    return this.gpu.createStorageBuffer({
       data,
       label: "Tool location",
       binding: Bindings.ToolLocation,

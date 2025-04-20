@@ -4,6 +4,10 @@
   import Canvas from "@/lib/components/Canvas.svelte";
   import DrawingControls from "@/lib/components/DrawingControls.svelte";
   import FileControls from "@/lib/components/FileControls.svelte";
+  import {
+    CurveInterpolator,
+    MAX_SEGMENTS,
+  } from "@/lib/services/curve-intepolator";
   import { Drawing, Tools } from "@/lib/services/drawing";
   import { Simulation, WORKGROUP_SIZE } from "@/lib/services/simulation.svelte";
   import utils from "@/lib/services/utils";
@@ -37,7 +41,7 @@
   let tool = $state(Tools.Pencil);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let toolBuffer: GPUBuffer | null = null;
-  let toolLocation: Float32Array = $state(new Float32Array([-1, -1]));
+  const toolLocationBufferSize = 4 * (MAX_SEGMENTS + 1);
   let toolLocationBuffer: GPUBuffer | null = null;
   let toolColor: Float32Array = $state(new Float32Array([35, 25, 100]));
   let toolColorBuffer: GPUBuffer | null = null;
@@ -95,7 +99,10 @@
 
     drawing = new Drawing(gpu);
     toolBuffer = drawing.createToolBuffer(new Int32Array([tool]));
-    toolLocationBuffer = drawing.createToolLocationBuffer(toolLocation);
+    // One more point than segments, because of the two end points.
+    toolLocationBuffer = drawing.createToolLocationBuffer(
+      new Float32Array(toolLocationBufferSize).fill(-1.0),
+    );
     toolColorBuffer = drawing.createToolColorBuffer(toolColor);
     toolSizeBuffer = drawing.createToolSizeBuffer(toolSize);
     toolOpacityBuffer = drawing.createToolOpacityBuffer(toolOpacity);
@@ -253,21 +260,31 @@
     }
   });
 
+  const curveInterpolator = new CurveInterpolator();
+
   function onToolMove(location: Float32Array | null) {
     if (location) {
-      const remappedLocation = new Float32Array([
+      const remappedLocation = [
         (location[0] / canvas!.clientWidth) * simulation!.gridSize[0],
         simulation!.gridSize[1] -
           (location[1] / canvas!.clientHeight) * simulation!.gridSize[1],
-      ]);
-      toolLocation = remappedLocation;
+      ];
+
       isDrawing = true;
+      curveInterpolator.addControlPoint(remappedLocation);
+      const newPoints = curveInterpolator.getNewestPoints();
+      const locations = [
+        ...newPoints.flat(),
+        ...new Array(4 * (MAX_SEGMENTS + 1 - newPoints.length)).fill(-1.0),
+      ];
+      gpu!.writeToBuffer(toolLocationBuffer!, new Float32Array(locations));
     } else {
-      toolLocation = new Float32Array([-1, -1]);
       isDrawing = false;
-    }
-    if (gpu && toolLocationBuffer) {
-      gpu.writeToBuffer(toolLocationBuffer, toolLocation);
+      curveInterpolator.reset();
+      gpu!.writeToBuffer(
+        toolLocationBuffer!,
+        new Float32Array(new Float32Array(toolLocationBufferSize).fill(-1.0)),
+      );
     }
   }
 
