@@ -41,7 +41,7 @@ fn getWindMovedMaterial(x: i32, y: i32) -> vec3f {
   let sourceIndex = cellIndex(x + source.x, y + source.y);
   let sourceDarkness = calculateDarkness(colorsIn[sourceIndex]);
 
-  if (sourceDarkness >= darkness + 0.05) {
+  if (sourceDarkness >= darkness) {
     movedMaterial[index] = vec3f(0.0);
     return movedMaterial[index];
   }
@@ -49,9 +49,18 @@ fn getWindMovedMaterial(x: i32, y: i32) -> vec3f {
   let destIndex = cellIndex(x - source.x, y - source.y);
   let destDarkness = calculateDarkness(colorsIn[destIndex]);
 
-  let localMaximaFactor = darkness - (sourceDarkness + destDarkness) / 2.0;
+  let localMaximaFactor = min(darkness - sourceDarkness, darkness / 75 + 0.005);
   let invertedColor = vec3f(255.0) - color;
-  let moved = clamp(localMaximaFactor * invertedColor * RGB_EROSION_FACTORS, vec3f(0.0), invertedColor / 10.0);
+  let randomFactors = vec3f(
+    0.9 + 0.2 * darkness,
+    0.6 + 0.4 * darkness,
+    1.2 - 0.4 * darkness
+  );
+  let moved = clamp(
+    darkness * localMaximaFactor * invertedColor * randomFactors, 
+    vec3f(0.0), 
+    invertedColor / 10.0
+  );
   
   movedMaterial[index] = moved;
   return movedMaterial[index];
@@ -90,12 +99,12 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   ) + 0.25 * getWindMovedMaterial(
     x + 2 * source.x, 
     y + 2 * source.y
-  ) + 0.125 * getWindMovedMaterial(
-    x + 4 * source.x, 
-    y + 4 * source.y
-  ) + 0.125 * getWindMovedMaterial(
-    x + 8 * source.x, 
-    y + 8 * source.y
+  ) + 0.15 * getWindMovedMaterial(
+    x + 5 * source.x, 
+    y + 5 * source.y
+  ) + 0.1 * getWindMovedMaterial(
+    x + 9 * source.x, 
+    y + 9 * source.y
   );
 
   // Removed material from being near water
@@ -108,5 +117,5 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   }
 
   let delta = removedMaterial - addedMaterial + vec3f(waterRemovedMaterial);
-  colorsOut[index] = normalizeColor(color + delta);
+  colorsOut[index] = color + delta;
 }
