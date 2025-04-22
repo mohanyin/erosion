@@ -114,7 +114,9 @@
     icon={mapToolToIcon(lastDrawingTool)}
     ariaLabel="Pencil"
     highlight={isDrawingTool(tool)}
+    disableExpansion={!isDrawingTool(tool)}
     activeWidth="w-50"
+    onClick={() => updateTool(lastDrawingTool)}
     onChange={(active) => (activeMenu = active ? "tool" : null)}
   >
     {#snippet meter()}

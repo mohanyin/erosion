@@ -11,7 +11,9 @@
     meter?: Snippet;
     highlight?: boolean;
     activeWidth?: string;
+    disableExpansion?: boolean;
     onChange?: (active: boolean) => void;
+    onClick?: () => void;
   }
 
   let {
@@ -22,12 +24,17 @@
     meter,
     highlight,
     activeWidth = "w-40",
+    disableExpansion,
     onChange,
+    onClick,
   }: Props = $props();
 
   let active = $state(false);
 
   function setActive(updated: boolean) {
+    if (disableExpansion) {
+      return;
+    }
     active = updated;
     onChange?.(active);
   }
@@ -49,7 +56,10 @@
         {icon}
         {ariaLabel}
         {highlight}
-        onclick={() => setActive(!active)}
+        onclick={() => {
+          setActive(!active);
+          onClick?.();
+        }}
       >
         {@render button?.()}
       </Button>
