@@ -4,6 +4,7 @@
   import Opacity from "@/assets/icons/Opacity.svelte";
   import StrokeWidth from "@/assets/icons/StrokeWidth.svelte";
   import Button from "@/lib/components/Button.svelte";
+  import DrawingControlMeter from "@/lib/components/DrawingControlMeter.svelte";
   import ExpandingButton from "@/lib/components/ExpandingButton.svelte";
   import Panel from "@/lib/components/Panel.svelte";
   import SliderControl from "@/lib/components/SliderControl.svelte";
@@ -25,6 +26,11 @@
     onToolSizeChange,
     onToolOpacityChange,
   }: Props = $props();
+
+  let activeTool = $state<
+    "size" | "opacity" | "hue" | "saturation" | "lightness" | null
+  >(null);
+
   const hsl = $derived.by(() => {
     const [r, g, b] = toolColor;
     return convert.rgb.hsl([r, g, b]);
@@ -77,7 +83,19 @@
 
   <div class="w-[1px] h-fill bg-gray-300"></div>
 
-  <ExpandingButton ariaLabel="Stroke width">
+  <ExpandingButton
+    ariaLabel="Stroke width"
+    onChange={(active) => (activeTool = active ? "size" : null)}
+  >
+    {#snippet meter()}
+      <DrawingControlMeter
+        active={activeTool !== "size"}
+        value={toolSize[0]}
+        min={4}
+        max={50}
+        indicatorColor="blue-500"
+      />
+    {/snippet}
     {#snippet button()}<StrokeWidth />{/snippet}
 
     <SliderControl
@@ -98,7 +116,19 @@
       {/snippet}
     </SliderControl>
   </ExpandingButton>
-  <ExpandingButton ariaLabel="Opacity">
+  <ExpandingButton
+    ariaLabel="Opacity"
+    onChange={(active) => (activeTool = active ? "opacity" : null)}
+  >
+    {#snippet meter()}
+      <DrawingControlMeter
+        active={activeTool !== "opacity"}
+        value={toolOpacity[0]}
+        min={0}
+        max={1}
+        indicatorColor="blue-500"
+      />
+    {/snippet}
     {#snippet button()}<Opacity />{/snippet}
 
     <SliderControl
@@ -122,7 +152,20 @@
 
   <div class="w-[1px] h-fill bg-gray-300"></div>
 
-  <ExpandingButton ariaLabel="Hue">
+  <ExpandingButton
+    ariaLabel="Hue"
+    onChange={(active) => (activeTool = active ? "hue" : null)}
+  >
+    {#snippet meter()}
+      <DrawingControlMeter
+        active={activeTool !== "hue"}
+        value={hsl[0]}
+        min={0}
+        max={360}
+        indicatorColor={thumbColor}
+        background={hueGradient}
+      />
+    {/snippet}
     {#snippet button()}H{/snippet}
 
     <SliderControl
@@ -135,7 +178,20 @@
       onValueChange={(value) => onColorChange([value])}
     ></SliderControl>
   </ExpandingButton>
-  <ExpandingButton ariaLabel="Saturation">
+  <ExpandingButton
+    ariaLabel="Saturation"
+    onChange={(active) => (activeTool = active ? "saturation" : null)}
+  >
+    {#snippet meter()}
+      <DrawingControlMeter
+        active={activeTool !== "saturation"}
+        value={hsl[1]}
+        min={0}
+        max={100}
+        indicatorColor={thumbColor}
+        background={saturationGradient}
+      />
+    {/snippet}
     {#snippet button()}S{/snippet}
 
     <SliderControl
@@ -148,7 +204,20 @@
       onValueChange={(value) => onColorChange([hsl[0], value])}
     ></SliderControl>
   </ExpandingButton>
-  <ExpandingButton ariaLabel="Lightness">
+  <ExpandingButton
+    ariaLabel="Lightness"
+    onChange={(active) => (activeTool = active ? "lightness" : null)}
+  >
+    {#snippet meter()}
+      <DrawingControlMeter
+        active={activeTool !== "lightness"}
+        value={100 - hsl[2]}
+        min={0}
+        max={100}
+        indicatorColor={thumbColor}
+        background={lightnessGradient}
+      />
+    {/snippet}
     {#snippet button()}L{/snippet}
 
     <SliderControl
