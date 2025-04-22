@@ -9,6 +9,8 @@ export const Tools = {
   WindErosion: 5,
 } as const;
 
+export type Tool = (typeof Tools)[keyof typeof Tools];
+
 export class Drawing {
   private gpu: SimulationGPU;
 

@@ -9,10 +9,21 @@
     children?: Snippet;
     button?: Snippet;
     meter?: Snippet;
+    highlight?: boolean;
+    activeWidth?: string;
     onChange?: (active: boolean) => void;
   }
 
-  let { icon, ariaLabel, children, button, meter, onChange }: Props = $props();
+  let {
+    icon,
+    ariaLabel,
+    children,
+    button,
+    meter,
+    highlight,
+    activeWidth = "w-40",
+    onChange,
+  }: Props = $props();
 
   let active = $state(false);
 
@@ -27,7 +38,7 @@
   <div
     class={[
       "relative transition-all rounded-lg overflow-hidden h-full",
-      { "w-40 shadow-lg -mt-2": active, "w-10": !active },
+      { "shadow-lg -mt-2": active, [activeWidth]: active, "w-10": !active },
     ]}
     onmouseleave={() => setActive(false)}
     role={active ? "dialog" : "button"}
@@ -37,6 +48,7 @@
         class="w-full"
         {icon}
         {ariaLabel}
+        {highlight}
         onclick={() => setActive(!active)}
       >
         {@render button?.()}

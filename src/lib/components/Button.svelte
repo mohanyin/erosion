@@ -3,6 +3,7 @@
   import type { ClassValue } from "svelte/elements";
 
   export interface Props {
+    highlight?: boolean;
     icon?: string;
     class?: ClassValue;
     ariaLabel?: string;
@@ -11,6 +12,7 @@
   }
 
   const {
+    highlight,
     icon,
     ariaLabel,
     onclick,
@@ -21,8 +23,11 @@
 
 <button
   class={[
-    "w-10 h-8 cursor-pointer flex items-center justify-center text-center rounded-lg bg-gray-200 text-black",
-    { icon: !!icon },
+    "w-10 h-8 cursor-pointer flex items-center justify-center text-center rounded-lg",
+    {
+      "bg-blue-500 text-white": highlight,
+      "bg-gray-200 text-black": !highlight,
+    },
     className,
   ]}
   aria-label={ariaLabel}

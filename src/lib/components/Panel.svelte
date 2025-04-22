@@ -13,7 +13,7 @@
 <svelte:element
   this={tag}
   class={[
-    "z-10 fixed flex p-3 gap-2 bg-gray-100 shadow-md inset-shadow-sm inset-shadow-white/50",
+    "z-10 fixed flex py-2 px-3 gap-2 bg-gray-100 shadow-md inset-shadow-sm inset-shadow-white/50",
     className,
   ]}
 >

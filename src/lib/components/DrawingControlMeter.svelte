@@ -6,6 +6,7 @@
     value: number;
     indicatorColor?: string;
     background?: string;
+    ticks?: number;
   }
 
   let {
@@ -15,6 +16,7 @@
     max,
     indicatorColor = "blue-500",
     background,
+    ticks,
   }: Props = $props();
 
   const position = $derived((value - min) / (max - min));
@@ -33,6 +35,15 @@
   style={`background: ${background};`}
 >
   <div class="relative h-1">
+    {#if ticks}
+      <!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -->
+      {#each Array(ticks).fill(0) as _, tick (tick)}
+        <div
+          class="absolute w-[2px] h-[2px] rounded-full bg-gray-400 -translate-x-1/2 top-1/2 -translate-y-1/2 transition-[background-color] duration-200"
+          style={`left: ${(tick * 100) / (ticks - 1)}%;`}
+        ></div>
+      {/each}
+    {/if}
     <div
       part="indicator"
       class={[

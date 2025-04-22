@@ -8,7 +8,7 @@
     CurveInterpolator,
     MAX_SEGMENTS,
   } from "@/lib/services/curve-intepolator";
-  import { Drawing, Tools } from "@/lib/services/drawing";
+  import { Drawing, Tools, type Tool } from "@/lib/services/drawing";
   import { Simulation, WORKGROUP_SIZE } from "@/lib/services/simulation.svelte";
   import utils from "@/lib/services/utils";
   import { SimulationGPU, Bindings } from "@/lib/services/web-gpu";
@@ -38,7 +38,7 @@
   let vertices = utils.getVerticesForSquare();
   let vertexBuffer: GPUBuffer | null = null;
 
-  let tool = $state(Tools.Pencil);
+  let tool = $state<Tool>(Tools.Pencil);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let toolBuffer: GPUBuffer | null = null;
   const toolLocationBufferSize = 4 * (MAX_SEGMENTS + 1);
@@ -317,9 +317,11 @@
     onPlayToggled={(play: boolean) => (isPlaying = play)}
   />
   <DrawingControls
+    {tool}
     {toolColor}
     {toolSize}
     {toolOpacity}
+    onToolChange={(newTool: Tool) => (tool = newTool)}
     {onToolColorChange}
     {onToolSizeChange}
     {onToolOpacityChange}

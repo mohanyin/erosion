@@ -8,27 +8,33 @@
   import ExpandingButton from "@/lib/components/ExpandingButton.svelte";
   import Panel from "@/lib/components/Panel.svelte";
   import SliderControl from "@/lib/components/SliderControl.svelte";
+  import { Tools, type Tool } from "@/lib/services/drawing";
 
   interface Props {
+    tool: Tool;
+    // TODO: make these normal arrays
     toolColor: Float32Array;
     toolSize: Float32Array;
     toolOpacity: Float32Array;
+    onToolChange: (tool: Tool) => void;
     onToolColorChange: (color: Float32Array) => void;
     onToolSizeChange: (size: Float32Array) => void;
     onToolOpacityChange: (opacity: Float32Array) => void;
   }
 
   let {
+    tool,
     toolColor,
     toolSize,
     toolOpacity,
+    onToolChange,
     onToolColorChange,
     onToolSizeChange,
     onToolOpacityChange,
   }: Props = $props();
 
-  let activeTool = $state<
-    "size" | "opacity" | "hue" | "saturation" | "lightness" | null
+  let activeMenu = $state<
+    "tool" | "size" | "opacity" | "hue" | "saturation" | "lightness" | null
   >(null);
 
   const hsl = $derived.by(() => {
@@ -71,25 +77,106 @@
     });
     return `linear-gradient(to right, ${stops.join(", ")})`;
   });
+
+  let lastDrawingTool = $state<Tool>(tool);
+
+  function mapToolToIcon(tool: Tool) {
+    switch (tool) {
+      case Tools.Pencil:
+        return "stylus_pencil";
+      case Tools.Pen:
+        return "stylus_pen";
+      case Tools.Marker:
+        return "stylus_highlighter";
+      case Tools.Brush:
+      default:
+        return "stylus_brush";
+    }
+  }
+
+  function isDrawingTool(tool: Tool) {
+    return !([Tools.Water, Tools.WindErosion] as Tool[]).includes(tool);
+  }
+
+  function updateTool(newTool: Tool) {
+    if (isDrawingTool(newTool)) {
+      lastDrawingTool = newTool;
+    }
+    onToolChange(newTool);
+  }
 </script>
 
 <Panel
   tag="footer"
   class="bottom-0 left-[50%] translate-x-[-50%] rounded-se-lg rounded-ss-lg"
 >
-  <Button icon="stylus_pencil" ariaLabel="Pencil" />
-  <Button icon="water" ariaLabel="Paint with water" />
-  <Button icon="air" ariaLabel="Erode with air" />
+  <ExpandingButton
+    icon={mapToolToIcon(lastDrawingTool)}
+    ariaLabel="Pencil"
+    highlight={isDrawingTool(tool)}
+    activeWidth="w-50"
+    onChange={(active) => (activeMenu = active ? "tool" : null)}
+  >
+    {#snippet meter()}
+      <DrawingControlMeter
+        active={activeMenu !== "tool"}
+        value={lastDrawingTool}
+        min={0}
+        max={3}
+        indicatorColor="blue-500"
+        ticks={4}
+      />
+    {/snippet}
+
+    <div
+      class="flex w-full justify-between bg-gray-200 px-1 h-full items-center"
+    >
+      <Button
+        icon="stylus_pencil"
+        highlight={tool === Tools.Pencil}
+        onclick={() => updateTool(Tools.Pencil)}
+      />
+      <Button
+        icon="stylus_pen"
+        highlight={tool === Tools.Pen}
+        onclick={() => updateTool(Tools.Pen)}
+      />
+      <Button
+        icon="stylus_highlighter"
+        highlight={tool === Tools.Marker}
+        onclick={() => updateTool(Tools.Marker)}
+      />
+      <Button
+        icon="stylus_brush"
+        highlight={tool === Tools.Brush}
+        onclick={() => updateTool(Tools.Brush)}
+      />
+    </div>
+  </ExpandingButton>
+  <div class="flex gap-2 items-end self-stretch">
+    <Button
+      icon="water"
+      ariaLabel="Paint with water"
+      highlight={tool === Tools.Water}
+      onclick={() => updateTool(Tools.Water)}
+    />
+    <Button
+      icon="air"
+      ariaLabel="Erode with air"
+      highlight={tool === Tools.WindErosion}
+      onclick={() => updateTool(Tools.WindErosion)}
+    />
+  </div>
 
   <div class="w-[1px] h-fill bg-gray-300"></div>
 
   <ExpandingButton
     ariaLabel="Stroke width"
-    onChange={(active) => (activeTool = active ? "size" : null)}
+    onChange={(active) => (activeMenu = active ? "size" : null)}
   >
     {#snippet meter()}
       <DrawingControlMeter
-        active={activeTool !== "size"}
+        active={activeMenu !== "size"}
         value={toolSize[0]}
         min={4}
         max={50}
@@ -118,11 +205,11 @@
   </ExpandingButton>
   <ExpandingButton
     ariaLabel="Opacity"
-    onChange={(active) => (activeTool = active ? "opacity" : null)}
+    onChange={(active) => (activeMenu = active ? "opacity" : null)}
   >
     {#snippet meter()}
       <DrawingControlMeter
-        active={activeTool !== "opacity"}
+        active={activeMenu !== "opacity"}
         value={toolOpacity[0]}
         min={0}
         max={1}
@@ -154,11 +241,11 @@
 
   <ExpandingButton
     ariaLabel="Hue"
-    onChange={(active) => (activeTool = active ? "hue" : null)}
+    onChange={(active) => (activeMenu = active ? "hue" : null)}
   >
     {#snippet meter()}
       <DrawingControlMeter
-        active={activeTool !== "hue"}
+        active={activeMenu !== "hue"}
         value={hsl[0]}
         min={0}
         max={360}
@@ -180,11 +267,11 @@
   </ExpandingButton>
   <ExpandingButton
     ariaLabel="Saturation"
-    onChange={(active) => (activeTool = active ? "saturation" : null)}
+    onChange={(active) => (activeMenu = active ? "saturation" : null)}
   >
     {#snippet meter()}
       <DrawingControlMeter
-        active={activeTool !== "saturation"}
+        active={activeMenu !== "saturation"}
         value={hsl[1]}
         min={0}
         max={100}
@@ -206,11 +293,11 @@
   </ExpandingButton>
   <ExpandingButton
     ariaLabel="Lightness"
-    onChange={(active) => (activeTool = active ? "lightness" : null)}
+    onChange={(active) => (activeMenu = active ? "lightness" : null)}
   >
     {#snippet meter()}
       <DrawingControlMeter
-        active={activeTool !== "lightness"}
+        active={activeMenu !== "lightness"}
         value={100 - hsl[2]}
         min={0}
         max={100}
