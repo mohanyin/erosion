@@ -64,7 +64,7 @@
     simulation.createGridSizeBuffer();
 
     windDirectionBuffer = simulation.createWindDirectionBuffer(
-      new Float32Array(windDirection),
+      new Float32Array([windDirection]),
     );
 
     simulation.createWaterSourceLocationBuffer(waterSourceLocation);
