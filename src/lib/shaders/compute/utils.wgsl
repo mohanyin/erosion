@@ -9,3 +9,11 @@ fn calculateDarkness(color: vec3f) -> f32 {
 fn normalizeColor(color: vec3f) -> vec3f {
   return clamp(color, vec3f(0.0), vec3f(255.0));
 }
+
+fn getSourceFromWind(direction: f32, distance: f32) -> vec2i {
+  let sourceDirection = direction + PI;
+  return vec2i(
+    i32(round(sin(sourceDirection) * distance)), 
+    i32(round(cos(sourceDirection) * distance))
+  );
+}

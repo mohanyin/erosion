@@ -40,6 +40,44 @@ fn shortestDistance(point: vec2f) -> f32 {
   return minDistance;
 }
 
+
+fn getWindMovedMaterial(cell: vec2i) -> vec3f {
+  let index = cellIndex(cell.x, cell.y);
+  let color = colorsIn[index];
+  let darkness = calculateDarkness(color);
+
+  let vectorToTool = vec2f(f32(cell.x), f32(cell.y)) - toolLocations[0];
+  let source = getSourceFromWind(atan2(vectorToTool.y, vectorToTool.x), 1.0);
+
+  let invertedColor = vec3f(255.0) - color;
+  let randomFactors = vec3f(
+    0.9 + 0.2 * darkness,
+    0.6 + 0.4 * darkness,
+    1.2 - 0.4 * darkness
+  );
+
+  let closeness = 1 - (length(vectorToTool) / toolSize);
+  return clamp(
+    invertedColor * randomFactors * closeness * toolOpacity, 
+    vec3f(0.0), 
+    invertedColor / 5.0
+  );
+}
+
+fn calculateWindErosion(cell: vec2i) -> vec3f {
+  let x = i32(cell.x);
+  let y = i32(cell.y);
+
+  let vectorToTool = normalize(vec2f(f32(cell.x), f32(cell.y)) - toolLocations[0]);
+
+  let color = colorsIn[cellIndex(x, y)];
+  return color + 
+    getWindMovedMaterial(cell) - 
+    0.35 * getWindMovedMaterial(cell - vec2i(i32(vectorToTool.x), i32(vectorToTool.y))) - 
+    0.2 * getWindMovedMaterial(cell - vec2i(i32(vectorToTool.x * 3.0), i32(vectorToTool.y * 3.0))) - 
+    0.1 * getWindMovedMaterial(cell - vec2i(i32(vectorToTool.x * 9.0), i32(vectorToTool.y * 9.0)));
+}
+
 @compute
 @workgroup_size({{WORKGROUP_SIZE}}, {{WORKGROUP_SIZE}})
 fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
@@ -50,6 +88,12 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   let x = i32(cell.x);
   let y = i32(cell.y);
   let color = colorsIn[cellIndex(x, y)];
+
+  if (tool == WIND_EROSION) {
+    let newColor = calculateWindErosion(vec2i(x, y));
+    colorsOut[cellIndex(x, y)] = normalizeColor(newColor);
+    return;
+  }
 
   let distanceToTool = shortestDistance(vec2f(f32(x), f32(y)));;
   if (distanceToTool > toolSize) {

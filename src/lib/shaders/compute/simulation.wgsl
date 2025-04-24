@@ -20,14 +20,6 @@ fn cellIndex(x: i32, y: i32) -> u32 {
   return (u32(clampedCell.y) * u32(grid.x) + u32(clampedCell.x));
 }
 
-fn getSourceFromWind(direction: f32) -> vec2i {
-  let sourceDirection = windDirection + PI;
-  return vec2i(
-    i32(round(sin(sourceDirection))), 
-    i32(round(cos(sourceDirection)))
-  );
-}
-
 fn getWindMovedMaterial(x: i32, y: i32) -> vec3f {
   let index = cellIndex(x, y);
   if (movedMaterial[index].r != RESET) {
@@ -37,7 +29,7 @@ fn getWindMovedMaterial(x: i32, y: i32) -> vec3f {
   let color = colorsIn[cellIndex(x, y)];
   let darkness = calculateDarkness(color);
 
-  let source = getSourceFromWind(windDirection);
+  let source = getSourceFromWind(windDirection, 1.0);
   let sourceIndex = cellIndex(x + source.x, y + source.y);
   let sourceDarkness = calculateDarkness(colorsIn[sourceIndex]);
 
@@ -92,19 +84,22 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   let removedMaterial = getWindMovedMaterial(x, y);
 
   // Added material from wind erosion from neighboring cells
-  let source = getSourceFromWind(windDirection);
+  let source = getSourceFromWind(windDirection, 1.0);
+  let source2 = getSourceFromWind(windDirection, 2.0);
+  let source3 = getSourceFromWind(windDirection, 5.0);
+  let source4 = getSourceFromWind(windDirection, 9.0);
   var addedMaterial = 0.5 * getWindMovedMaterial(
     x + source.x, 
     y + source.y
   ) + 0.25 * getWindMovedMaterial(
-    x + 2 * source.x, 
-    y + 2 * source.y
+    x + source2.x, 
+    y + source2.y
   ) + 0.15 * getWindMovedMaterial(
-    x + 5 * source.x, 
-    y + 5 * source.y
+    x + source3.x, 
+    y + source3.y
   ) + 0.1 * getWindMovedMaterial(
-    x + 9 * source.x, 
-    y + 9 * source.y
+    x + source4.x, 
+    y + source4.y
   );
 
   // Removed material from being near water
