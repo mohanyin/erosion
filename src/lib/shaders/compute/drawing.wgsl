@@ -46,9 +46,7 @@ fn getWindMovedMaterial(cell: vec2i) -> vec3f {
   let color = colorsIn[index];
   let darkness = calculateDarkness(color);
 
-  let vectorToTool = vec2f(f32(cell.x), f32(cell.y)) - toolLocations[0];
-  let source = getSourceFromWind(atan2(vectorToTool.y, vectorToTool.x), 1.0);
-
+  let distanceToTool = shortestDistance(vec2f(f32(cell.x), f32(cell.y)));;
   let invertedColor = vec3f(255.0) - color;
   let randomFactors = vec3f(
     0.9 + 0.2 * darkness,
@@ -56,7 +54,7 @@ fn getWindMovedMaterial(cell: vec2i) -> vec3f {
     1.2 - 0.4 * darkness
   );
 
-  let closeness = 1 - (length(vectorToTool) / toolSize);
+  let closeness = 1 - (distanceToTool / toolSize);
   return clamp(
     invertedColor * randomFactors * closeness * toolOpacity, 
     vec3f(0.0), 
