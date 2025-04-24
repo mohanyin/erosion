@@ -49,26 +49,34 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
 
   let x = i32(cell.x);
   let y = i32(cell.y);
-  var color = colorsIn[cellIndex(x, y)];
+  let color = colorsIn[cellIndex(x, y)];
 
-  let distanceToTool = shortestDistance(vec2f(f32(x), f32(y)));
-  let isWithinTool = distanceToTool < (toolSize / 2.0);
+  let distanceToTool = shortestDistance(vec2f(f32(x), f32(y)));;
+  if (distanceToTool > toolSize) {
+    return;
+  }
+  
+  let closeness = 1 - (distanceToTool / toolSize);
   let colorDifference = color - toolColor;
   var newColor = color;
 
-  if (tool == PENCIL ) {
-    if (isWithinTool) {
-      let textureSeed = f32(cellIndex(x, y)) / (toolSize / 6.0);
-      let textureFactor = sqrt(((textureSeed * 23.0) % 48.0) + 16.0) / 8.0;
-      let change = toolOpacity * colorDifference  * textureFactor;
-      newColor = color - change / 2;
-    }
+  if (tool == PENCIL) {
+    let textureSeed = f32(cellIndex(x, y)) / (toolSize / 6.0);
+    let textureFactor = sqrt(((textureSeed * 23.0) % 48.0) + 16.0) / 8.0;
+    let change = toolOpacity * colorDifference  * textureFactor * pow(closeness, 0.7);
+    newColor = color - change / 2;
   } else if (tool == PEN) {
-    if (isWithinTool) {
-      let distanceFactor = clamp((toolSize - distanceToTool - 4.0) / 4.0, 0.0, 1.0);
-      let change = toolOpacity * colorDifference * distanceFactor;
-      newColor = color - change / 1.5;
-    }
+    let change = toolOpacity * colorDifference * pow(closeness, 0.4);
+    newColor = color - change / 1.5;
+  } else if (tool == MARKER) {
+    let change = toolOpacity * max(colorDifference, vec3f(0.0)) * pow(closeness, 0.4);
+    newColor = color - change / 4;
+  } else if (tool == BRUSH) {
+    let brushDirection = normalize(toolLocations[0] - toolLocations[1]);
+    let textureSeed = abs(dot(brushDirection, vec2f(f32(x), f32(y)))) / (toolSize / 6.0);
+    let textureFactor = sqrt((textureSeed * 301.0) % 64.0) / 8.0;
+    let change = toolOpacity * colorDifference  * textureFactor * sqrt(closeness);
+    newColor = color - change / 2;
   }
 
   colorsOut[cellIndex(x, y)] = normalizeColor(newColor);
