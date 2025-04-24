@@ -23,10 +23,10 @@
 
 <button
   class={[
-    "w-10 h-8 cursor-pointer flex items-center justify-center text-center rounded-lg",
+    "w-10 h-8 cursor-pointer flex items-center justify-center text-center rounded-lg transition-colors duration-200 active:scale-95",
     {
-      "bg-blue-500 text-white": highlight,
-      "bg-gray-200 text-black": !highlight,
+      "bg-blue-500 text-white hover:bg-blue-600": highlight,
+      "bg-gray-200 text-black hover:bg-gray-300": !highlight,
     },
     className,
   ]}
