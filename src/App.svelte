@@ -39,7 +39,7 @@
   let vertexBuffer: GPUBuffer | null = null;
 
   let tool = $state<Tool>(Tools.Pencil);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   let toolBuffer: GPUBuffer | null = null;
   const toolLocationBufferSize = 4 * (MAX_SEGMENTS + 1);
   let toolLocationBuffer: GPUBuffer | null = null;
@@ -210,10 +210,16 @@
 
     const encoder = gpu.device.createCommandEncoder();
 
-    const simulationBindGroup = bindGroups[step % 2];
-    simulation.runComputePass("preSimulation", encoder, simulationBindGroup);
-    simulation.runComputePass("waterSimulation", encoder, simulationBindGroup);
-    simulation.runComputePass("simulation", encoder, simulationBindGroup);
+    if (isPlaying) {
+      const simulationBindGroup = bindGroups[step % 2];
+      simulation.runComputePass("preSimulation", encoder, simulationBindGroup);
+      simulation.runComputePass(
+        "waterSimulation",
+        encoder,
+        simulationBindGroup,
+      );
+      simulation.runComputePass("simulation", encoder, simulationBindGroup);
+    }
 
     // TODO: DON'T OVERWRITE EROSION
     const currentBindGroup = bindGroups[step % 2];
@@ -259,6 +265,13 @@
       }
     }
   });
+
+  function onToolChange(newTool: Tool) {
+    tool = newTool;
+    if (gpu && toolBuffer) {
+      gpu.writeToBuffer(toolBuffer, new Int32Array([tool]));
+    }
+  }
 
   const curveInterpolator = new CurveInterpolator();
 
@@ -321,7 +334,7 @@
     {toolColor}
     {toolSize}
     {toolOpacity}
-    onToolChange={(newTool: Tool) => (tool = newTool)}
+    {onToolChange}
     {onToolColorChange}
     {onToolSizeChange}
     {onToolOpacityChange}

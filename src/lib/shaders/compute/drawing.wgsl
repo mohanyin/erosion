@@ -52,15 +52,24 @@ fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
   var color = colorsIn[cellIndex(x, y)];
 
   let distanceToTool = shortestDistance(vec2f(f32(x), f32(y)));
+  let isWithinTool = distanceToTool < (toolSize / 2.0);
+  let colorDifference = color - toolColor;
+  var newColor = color;
 
-  if (tool == PENCIL || tool == PEN) {
-    if (distanceToTool < toolSize) {
-      let colorDifference = color - toolColor;
+  if (tool == PENCIL ) {
+    if (isWithinTool) {
+      let textureSeed = f32(cellIndex(x, y)) / (toolSize / 6.0);
+      let textureFactor = sqrt(((textureSeed * 23.0) % 48.0) + 16.0) / 8.0;
+      let change = toolOpacity * colorDifference  * textureFactor;
+      newColor = color - change / 2;
+    }
+  } else if (tool == PEN) {
+    if (isWithinTool) {
       let distanceFactor = clamp((toolSize - distanceToTool - 4.0) / 4.0, 0.0, 1.0);
-
       let change = toolOpacity * colorDifference * distanceFactor;
-      let newColor = clamp(color - change, vec3f(0.0), vec3f(255.0));
-      colorsOut[cellIndex(x, y)] = newColor;
+      newColor = color - change / 1.5;
     }
   }
+
+  colorsOut[cellIndex(x, y)] = normalizeColor(newColor);
 }
