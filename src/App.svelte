@@ -43,11 +43,11 @@
   let toolBuffer: GPUBuffer | null = null;
   const toolLocationBufferSize = 4 * (MAX_SEGMENTS + 1);
   let toolLocationBuffer: GPUBuffer | null = null;
-  let toolColor: Float32Array = $state(new Float32Array([35, 25, 100]));
+  let toolColor: Float32Array = $state(new Float32Array([0, 0, 0]));
   let toolColorBuffer: GPUBuffer | null = null;
   let toolSize: Float32Array = $state(new Float32Array([24]));
   let toolSizeBuffer: GPUBuffer | null = null;
-  let toolOpacity: Float32Array = $state(new Float32Array([0.6]));
+  let toolOpacity: Float32Array = $state(new Float32Array([1]));
   let toolOpacityBuffer: GPUBuffer | null = null;
 
   onMount(async () => {
