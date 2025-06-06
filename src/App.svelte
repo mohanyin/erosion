@@ -12,12 +12,12 @@
   import { Simulation, WORKGROUP_SIZE } from "@/lib/services/simulation.svelte";
   import utils from "@/lib/services/utils";
   import { SimulationGPU, Bindings } from "@/lib/services/web-gpu";
-  import cellShader from "@/lib/shaders/cell.wgsl?raw";
   import drawingShader from "@/lib/shaders/compute/drawing.wgsl?raw";
   import preSimulationShader from "@/lib/shaders/compute/pre-simulation.wgsl?raw";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import shaderUtils from "@/lib/shaders/compute/utils.wgsl?raw";
   import waterSimulationShader from "@/lib/shaders/compute/water-simulation.wgsl?raw";
+  import cellShader from "@/lib/shaders/draw.wgsl?raw";
 
   const UPDATE_INTERVAL = 1000 / 60;
   const WIND_DIRECTION_VARIABILITY = 0.1;
