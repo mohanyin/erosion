@@ -8,16 +8,17 @@
     CurveInterpolator,
     MAX_SEGMENTS,
   } from "@/lib/services/curve-intepolator";
-  import { Drawing, Tools, type Tool } from "@/lib/services/drawing";
+  import { Tools, type Tool } from "@/lib/services/drawing";
+  import ShaderPipeline from "@/lib/services/shader-pipeline";
   import { Simulation, WORKGROUP_SIZE } from "@/lib/services/simulation.svelte";
   import utils from "@/lib/services/utils";
-  import { SimulationGPU, Bindings } from "@/lib/services/web-gpu";
+  import { Bindings, SimulationGPU } from "@/lib/services/web-gpu";
   import drawingShader from "@/lib/shaders/compute/drawing.wgsl?raw";
   import preSimulationShader from "@/lib/shaders/compute/pre-simulation.wgsl?raw";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
   import shaderUtils from "@/lib/shaders/compute/utils.wgsl?raw";
   import waterSimulationShader from "@/lib/shaders/compute/water-simulation.wgsl?raw";
-  import cellShader from "@/lib/shaders/draw.wgsl?raw";
+  import drawShader from "@/lib/shaders/draw.wgsl?raw";
 
   const UPDATE_INTERVAL = 1000 / 60;
   const WIND_DIRECTION_VARIABILITY = 0.1;
@@ -25,12 +26,11 @@
   let canvas: HTMLCanvasElement | null = $state(null);
   let gpu: SimulationGPU | null = $state(null);
   let simulation: Simulation | null = $state(null);
-  let drawing: Drawing | null = $state(null);
+  let pipeline: ShaderPipeline | null = $state(null);
 
   let step = 0;
 
   let windDirection = $state(Math.random() * 2 * Math.PI);
-  let windDirectionBuffer: GPUBuffer | null = null;
   let waterSourceHeight = $state(new Float32Array([0.01]));
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let waterSourceHeightBuffer: GPUBuffer | null = null;
@@ -40,15 +40,10 @@
 
   let tool = $state<Tool>(Tools.Pencil);
 
-  let toolBuffer: GPUBuffer | null = null;
   const toolLocationBufferSize = 4 * (MAX_SEGMENTS + 1);
-  let toolLocationBuffer: GPUBuffer | null = null;
   let toolColor: Float32Array = $state(new Float32Array([0, 0, 0]));
-  let toolColorBuffer: GPUBuffer | null = null;
   let toolSize: Float32Array = $state(new Float32Array([24]));
-  let toolSizeBuffer: GPUBuffer | null = null;
   let toolOpacity: Float32Array = $state(new Float32Array([1]));
-  let toolOpacityBuffer: GPUBuffer | null = null;
 
   onMount(async () => {
     await setupSimulation();
@@ -60,14 +55,51 @@
     await gpu.init();
     gpu.setupGPUCanvasRendering(canvas!);
 
+    pipeline = new ShaderPipeline({
+      gpu,
+      // fix
+      groups: { MAIN: 0, WORKGROUP_SIZE: 1 },
+      bindings: Bindings,
+      shaders: {
+        preSimulation: preSimulationShader,
+        simulation: simulationShader,
+        waterSimulation: waterSimulationShader,
+        drawing: drawingShader,
+        draw: drawShader,
+      },
+    });
+
     simulation = new Simulation(gpu);
-    simulation.createGridSizeBuffer();
 
-    windDirectionBuffer = simulation.createWindDirectionBuffer(
-      new Float32Array([windDirection]),
-    );
+    const waterSourceIndex =
+      waterSourceLocation[0] + waterSourceLocation[1] * simulation.gridSize[0];
+    const waterStateArray = new Int32Array(simulation.gridCellCount);
+    waterStateArray[waterSourceIndex] = 1;
 
-    simulation.createWaterSourceLocationBuffer(waterSourceLocation);
+    pipeline.initBuffers({
+      [Bindings.GridSize]: new Float32Array(simulation.gridSize),
+      [Bindings.WindDirection]: new Float32Array([windDirection]),
+      [Bindings.WaterSourceLocation]: waterSourceLocation,
+      [Bindings.WaterSourceHeight]: waterSourceHeight,
+      [Bindings.WaterStateA]: waterStateArray,
+      [Bindings.WaterStateB]: waterStateArray,
+      [Bindings.Tool]: new Int32Array([tool]),
+      [Bindings.ToolLocation]: new Float32Array(toolLocationBufferSize).fill(
+        -1.0,
+      ),
+      [Bindings.ToolColor]: toolColor,
+      [Bindings.ToolSize]: toolSize,
+      [Bindings.ToolOpacity]: toolOpacity,
+      [Bindings.ColorsA]: new Float32Array(simulation.gridCellCount * 4).fill(
+        255.0,
+      ),
+      [Bindings.ColorsB]: new Float32Array(simulation.gridCellCount * 4).fill(
+        255.0,
+      ),
+      [Bindings.MovedMaterial]: new Float32Array(
+        new Float32Array(4 * simulation.gridCellCount).fill(-1.0),
+      ),
+    });
 
     vertexBuffer = gpu.createVertexBuffer({
       data: vertices,
@@ -80,32 +112,6 @@
         },
       ],
     });
-
-    simulation.createColorBuffers(
-      new Float32Array(simulation.gridCellCount * 4).fill(255.0),
-    );
-
-    waterSourceHeightBuffer =
-      simulation.createWaterSourceHeightBuffer(waterSourceHeight);
-    const waterSourceIndex =
-      waterSourceLocation[0] + waterSourceLocation[1] * simulation.gridSize[0];
-    const waterStateArray = new Int32Array(simulation.gridCellCount);
-    waterStateArray[waterSourceIndex] = 1;
-    simulation.createWaterStateBuffers(waterStateArray);
-
-    simulation.createMovedMaterialBuffer(
-      new Float32Array(4 * simulation.gridCellCount).fill(-1.0),
-    );
-
-    drawing = new Drawing(gpu);
-    toolBuffer = drawing.createToolBuffer(new Int32Array([tool]));
-    // One more point than segments, because of the two end points.
-    toolLocationBuffer = drawing.createToolLocationBuffer(
-      new Float32Array(toolLocationBufferSize).fill(-1.0),
-    );
-    toolColorBuffer = drawing.createToolColorBuffer(toolColor);
-    toolSizeBuffer = drawing.createToolSizeBuffer(toolSize);
-    toolOpacityBuffer = drawing.createToolOpacityBuffer(toolOpacity);
 
     const preSimulationShaderModule = gpu.createShaderModule(
       { code: shaderUtils + preSimulationShader },
@@ -128,7 +134,7 @@
     );
 
     const cellShaderModule = gpu.createShaderModule(
-      { code: shaderUtils + cellShader },
+      { code: shaderUtils + drawShader },
       { ...Bindings },
     );
 
@@ -192,7 +198,7 @@
   });
 
   function updateGrid() {
-    if (!gpu || !gpu.isFinalized) {
+    if (!gpu || !gpu.isFinalized || !pipeline) {
       throw new Error("GPU not initialized");
     }
 
@@ -203,7 +209,10 @@
     windDirection =
       utils.randomlyNudgeValue(windDirection, WIND_DIRECTION_VARIABILITY) %
       (2 * Math.PI);
-    gpu.writeToBuffer(windDirectionBuffer!, new Float32Array([windDirection]));
+    pipeline.updateBuffer(
+      Bindings.WindDirection,
+      new Float32Array([windDirection]),
+    );
 
     // waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
     // gpu.writeToBuffer(waterSourceHeightBuffer!, waterSourceHeight);
@@ -268,9 +277,10 @@
 
   function onToolChange(newTool: Tool) {
     tool = newTool;
-    if (gpu && toolBuffer) {
-      gpu.writeToBuffer(toolBuffer, new Int32Array([tool]));
+    if (!pipeline) {
+      throw new Error("Pipeline not initialized");
     }
+    pipeline.updateBuffer(Bindings.Tool, new Int32Array([tool]));
   }
 
   const curveInterpolator = new CurveInterpolator();
@@ -290,12 +300,15 @@
         ...newPoints.flat(),
         ...new Array(4 * (MAX_SEGMENTS + 1 - newPoints.length)).fill(-1.0),
       ];
-      gpu!.writeToBuffer(toolLocationBuffer!, new Float32Array(locations));
+      pipeline!.updateBuffer(
+        Bindings.ToolLocation,
+        new Float32Array(locations),
+      );
     } else {
       isDrawing = false;
       curveInterpolator.reset();
-      gpu!.writeToBuffer(
-        toolLocationBuffer!,
+      pipeline!.updateBuffer(
+        Bindings.ToolLocation,
         new Float32Array(new Float32Array(toolLocationBufferSize).fill(-1.0)),
       );
     }
@@ -303,23 +316,26 @@
 
   function onToolColorChange(color: Float32Array) {
     toolColor = color;
-    if (gpu && toolColorBuffer) {
-      gpu.writeToBuffer(toolColorBuffer, toolColor);
+    if (!pipeline) {
+      throw new Error("Pipeline not initialized");
     }
+    pipeline.updateBuffer(Bindings.ToolColor, toolColor);
   }
 
   function onToolSizeChange(size: Float32Array) {
     toolSize = size;
-    if (gpu && toolSizeBuffer) {
-      gpu.writeToBuffer(toolSizeBuffer, toolSize);
+    if (!pipeline) {
+      throw new Error("Pipeline not initialized");
     }
+    pipeline.updateBuffer(Bindings.ToolSize, toolSize);
   }
 
   function onToolOpacityChange(opacity: Float32Array) {
     toolOpacity = opacity;
-    if (gpu && toolOpacityBuffer) {
-      gpu.writeToBuffer(toolOpacityBuffer, toolOpacity);
+    if (!pipeline) {
+      throw new Error("Pipeline not initialized");
     }
+    pipeline.updateBuffer(Bindings.ToolOpacity, toolOpacity);
   }
 </script>
 

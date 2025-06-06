@@ -1,3 +1,7 @@
+@group(0) @binding({{GridSize}}) var<uniform> grid: vec2f;
+@group(0) @binding({{ColorsA}}) var<storage> colors: array<vec3f>;
+@group(0) @binding({{WaterStateA}}) var<storage> waterState: array<i32>;
+
 struct VertexInput {
   @location(0) pos: vec2f,
   @builtin(instance_index) instance: u32,
@@ -9,11 +13,6 @@ struct VertexOutput {
   @location(1) color: vec3f,
   @interpolate(flat) @location(2) instance: u32,
 };
-
-@group(0) @binding({{GridSize}}) var<uniform> grid: vec2f;
-@group(0) @binding({{ColorsA}}) var<storage> colors: array<vec3f>;
-@group(0) @binding({{WaterStateA}}) var<storage> waterState: array<i32>;
-@group(0) @binding({{ToolLocation}}) var<uniform> toolLocation: vec2f;
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {

@@ -80,18 +80,31 @@ interface DataBufferWithOptions {
   usage: GPUBufferUsageFlags;
 }
 
-interface CreateDataBufferOptions
+export interface CreateDataBufferOptions
   extends Omit<DataBufferWithOptions, "buffer"> {
   data: GPUAllowSharedBufferSource;
   label: string;
 }
 
-type CreateSpecificDataBufferOptions = Omit<CreateDataBufferOptions, "usage">;
+export type CreateSpecificDataBufferOptions = Omit<
+  CreateDataBufferOptions,
+  "usage"
+>;
 
 interface CreateVertexBufferOptions {
   data: Float32Array;
   label: string;
   attributes: GPUVertexAttribute[];
+}
+
+export function interpolateShader(
+  code: string,
+  interpolate: Record<string, string | number> = {},
+) {
+  Object.entries(interpolate).forEach(([key, value]) => {
+    code = code.replaceAll(`{{${key}}}`, value.toString());
+  });
+  return code;
 }
 
 export class GPU extends BaseGPU {
@@ -202,14 +215,9 @@ export class GPU extends BaseGPU {
 
   createShaderModule(
     options: GPUShaderModuleDescriptor,
-    interpolate?: Record<string, string | number>,
+    interpolate: Record<string, string | number> = {},
   ) {
-    let code = options.code;
-    if (interpolate) {
-      Object.entries(interpolate).forEach(([key, value]) => {
-        code = code.replaceAll(`{{${key}}}`, value.toString());
-      });
-    }
+    const code = interpolateShader(options.code, interpolate);
     return this.device.createShaderModule({
       ...options,
       code,
