@@ -26,7 +26,18 @@
   let canvas: HTMLCanvasElement | null = $state(null);
   let gpu: SimulationGPU | null = $state(null);
   let simulation: Simulation | null = $state(null);
-  let pipeline: ShaderPipeline | null = $state(null);
+  const pipeline = new ShaderPipeline({
+    // fix
+    groups: { MAIN: 0, WORKGROUP_SIZE: 1 },
+    bindings: Bindings,
+    shaders: {
+      preSimulation: preSimulationShader,
+      simulation: simulationShader,
+      waterSimulation: waterSimulationShader,
+      drawing: drawingShader,
+      draw: drawShader,
+    },
+  });
 
   let step = 0;
 
@@ -55,20 +66,6 @@
     await gpu.init();
     gpu.setupGPUCanvasRendering(canvas!);
 
-    pipeline = new ShaderPipeline({
-      gpu,
-      // fix
-      groups: { MAIN: 0, WORKGROUP_SIZE: 1 },
-      bindings: Bindings,
-      shaders: {
-        preSimulation: preSimulationShader,
-        simulation: simulationShader,
-        waterSimulation: waterSimulationShader,
-        drawing: drawingShader,
-        draw: drawShader,
-      },
-    });
-
     simulation = new Simulation(gpu);
 
     const waterSourceIndex =
@@ -76,7 +73,7 @@
     const waterStateArray = new Int32Array(simulation.gridCellCount);
     waterStateArray[waterSourceIndex] = 1;
 
-    pipeline.initBuffers({
+    pipeline.initBuffers(gpu, {
       [Bindings.GridSize]: new Float32Array(simulation.gridSize),
       [Bindings.WindDirection]: new Float32Array([windDirection]),
       [Bindings.WaterSourceLocation]: waterSourceLocation,
@@ -198,7 +195,7 @@
   });
 
   function updateGrid() {
-    if (!gpu || !gpu.isFinalized || !pipeline) {
+    if (!gpu || !gpu.isFinalized) {
       throw new Error("GPU not initialized");
     }
 
@@ -277,9 +274,6 @@
 
   function onToolChange(newTool: Tool) {
     tool = newTool;
-    if (!pipeline) {
-      throw new Error("Pipeline not initialized");
-    }
     pipeline.updateBuffer(Bindings.Tool, new Int32Array([tool]));
   }
 
@@ -300,14 +294,11 @@
         ...newPoints.flat(),
         ...new Array(4 * (MAX_SEGMENTS + 1 - newPoints.length)).fill(-1.0),
       ];
-      pipeline!.updateBuffer(
-        Bindings.ToolLocation,
-        new Float32Array(locations),
-      );
+      pipeline.updateBuffer(Bindings.ToolLocation, new Float32Array(locations));
     } else {
       isDrawing = false;
       curveInterpolator.reset();
-      pipeline!.updateBuffer(
+      pipeline.updateBuffer(
         Bindings.ToolLocation,
         new Float32Array(new Float32Array(toolLocationBufferSize).fill(-1.0)),
       );
@@ -316,25 +307,16 @@
 
   function onToolColorChange(color: Float32Array) {
     toolColor = color;
-    if (!pipeline) {
-      throw new Error("Pipeline not initialized");
-    }
     pipeline.updateBuffer(Bindings.ToolColor, toolColor);
   }
 
   function onToolSizeChange(size: Float32Array) {
     toolSize = size;
-    if (!pipeline) {
-      throw new Error("Pipeline not initialized");
-    }
     pipeline.updateBuffer(Bindings.ToolSize, toolSize);
   }
 
   function onToolOpacityChange(opacity: Float32Array) {
     toolOpacity = opacity;
-    if (!pipeline) {
-      throw new Error("Pipeline not initialized");
-    }
     pipeline.updateBuffer(Bindings.ToolOpacity, toolOpacity);
   }
 </script>

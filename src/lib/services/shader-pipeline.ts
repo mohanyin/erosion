@@ -10,48 +10,24 @@ type Binding = number;
 type Group = number;
 
 export default class ShaderPipeline {
-  private gpu: GPU;
+  private gpu!: GPU;
   private shaders: Record<string, string> = {};
   private reflect: Record<string, WgslReflect> = {};
   private buffers: Record<string, GPUBuffer> = {};
 
   constructor({
-    gpu,
     groups,
     bindings,
     shaders,
   }: {
-    gpu: GPU;
     groups: Record<string, Group>;
     bindings: Record<string, Binding>;
     shaders: Record<string, string>;
   }) {
-    this.gpu = gpu;
     Object.entries(shaders).forEach(([name, code]) => {
       this.shaders[name] = interpolateShader(code, { ...groups, ...bindings });
       this.reflect[name] = new WgslReflect(this.shaders[name]);
     });
-  }
-
-  private mergeVariableInfo(
-    first: VariableInfo,
-    second?: VariableInfo,
-  ): VariableInfo {
-    if (!second) {
-      return first;
-    }
-
-    return new VariableInfo(
-      first.name,
-      first.type,
-      first.group,
-      first.binding,
-      first.attributes,
-      first.resourceType,
-      first.access === "read_write" || second.access === "read_write"
-        ? "read_write"
-        : "read",
-    );
   }
 
   private getUsage(variable: VariableInfo) {
@@ -117,9 +93,10 @@ export default class ShaderPipeline {
     return dataBufferOptions;
   }
 
-  initBuffers(values: Record<Binding, GPUAllowSharedBufferSource>) {
-    const variables = this.mergeShaderReflections();
+  initBuffers(gpu: GPU, values: Record<Binding, GPUAllowSharedBufferSource>) {
+    this.gpu = gpu;
 
+    const variables = this.mergeShaderReflections();
     Object.entries(variables).forEach(([binding, variable]) => {
       this.buffers[binding] = this.gpu.createAndCopyBuffer({
         ...variable,
