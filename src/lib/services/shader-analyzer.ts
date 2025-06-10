@@ -24,7 +24,7 @@ export default class ShaderAnalyzer {
     this.mergedVariableData = this.mergeVariableData();
   }
 
-  private getUsage(variable: VariableInfo) {
+  private mapUsage(variable: VariableInfo) {
     if (variable.resourceType === ResourceType.Uniform) {
       return GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST;
     } else if (variable.resourceType === ResourceType.Storage) {
@@ -32,7 +32,7 @@ export default class ShaderAnalyzer {
     }
   }
 
-  private getVisibility(
+  private mapVisibility(
     variable: VariableInfo,
     reflection: WgslReflect,
   ): GPUFlagsConstant {
@@ -68,10 +68,10 @@ export default class ShaderAnalyzer {
       for (const variable of [...reflection.uniforms, ...reflection.storage]) {
         if (!dataBufferOptions[variable.binding]) {
           dataBufferOptions[variable.binding] = {
-            usage: this.getUsage(variable),
+            usage: this.mapUsage(variable),
             label: variable.name, // use binding key at some point
             binding: variable.binding,
-            visibility: this.getVisibility(variable, reflection),
+            visibility: this.mapVisibility(variable, reflection),
             readonly: variable.access !== "read_write",
           };
         } else {
@@ -80,7 +80,7 @@ export default class ShaderAnalyzer {
             current.readonly = false;
           }
           current.visibility =
-            current.visibility! | this.getVisibility(variable, reflection);
+            current.visibility! | this.mapVisibility(variable, reflection);
         }
       }
     }
@@ -88,76 +88,7 @@ export default class ShaderAnalyzer {
     return dataBufferOptions;
   }
 
-  private calculateBinding(binding: Binding | (() => Binding)) {
-    return typeof binding === "function" ? binding() : binding;
-  }
-
-  createBuffer<T extends BufferData>(
-    rawBinding: RawBinding,
-    data: GPUAllowSharedBufferSource,
-  ) {
-    const binding = this.calculateBinding(rawBinding);
-    const buffer = new WebGPUBuffer<T>({
-      data,
-      usage: this.mergedVariableData[binding].usage!,
-    });
-    this.bindGroup.push({
-      buffer,
-      binding: rawBinding,
-    });
-    return buffer;
-  }
-
-  private mapUsageToBufferType(
-    usage: GPUBufferUsageFlags,
-    readonly: boolean,
-  ): GPUBufferBindingLayout {
-    if (usage & GPUBufferUsage.UNIFORM) {
-      return { type: "uniform" };
-    } else if (usage & GPUBufferUsage.STORAGE && !readonly) {
-      return { type: "storage" };
-    } else if (usage & GPUBufferUsage.STORAGE && readonly) {
-      return { type: "read-only-storage" };
-    } else {
-      throw new Error("Unknown buffer usage");
-    }
-  }
-
-  private getBindGroupLayout(label: string): GPUBindGroupLayoutEntry[] {
-    return this.bindGroup.map((bindGroup) => {
-      const binding = this.calculateBinding(bindGroup.binding);
-      const variable = this.mergedVariableData[binding];
-      return {
-        label: label,
-        binding,
-        visibility: variable.visibility!,
-        buffer: this.mapUsageToBufferType(variable.usage!, variable.readonly!),
-      };
-    });
-  }
-
-  private getBindGroupEntries(label: string): GPUBindGroupEntry[] {
-    return this.bindGroup.map((bindGroup) => {
-      const binding = this.calculateBinding(bindGroup.binding);
-      return {
-        binding,
-        resource: { buffer: bindGroup.buffer.buffer!, label: label + binding },
-      };
-    });
-  }
-
-  createBindGroupLayout(device: GPUDevice, label: string) {
-    return device.createBindGroupLayout({
-      label,
-      entries: this.getBindGroupLayout(label + "layout"),
-    });
-  }
-
-  createBindGroup(device: GPUDevice, label: string) {
-    return device.createBindGroup({
-      label,
-      layout: this.createBindGroupLayout(device, label),
-      entries: this.getBindGroupEntries(label + "entries"),
-    });
+  getVariableData(binding: Binding) {
+    return this.mergedVariableData[binding];
   }
 }

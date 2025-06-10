@@ -10,16 +10,18 @@
   import SliderControl from "@/lib/components/SliderControl.svelte";
   import { Tools, type Tool } from "@/lib/services/drawing";
 
+  // TODO: move to a shared file
+  type RGB = [number, number, number];
+
   interface Props {
     tool: Tool;
-    // TODO: make these normal arrays
-    toolColor: Float32Array;
-    toolSize: Float32Array;
-    toolOpacity: Float32Array;
+    toolColor: RGB;
+    toolSize: number;
+    toolOpacity: number;
     onToolChange: (tool: Tool) => void;
-    onToolColorChange: (color: Float32Array) => void;
-    onToolSizeChange: (size: Float32Array) => void;
-    onToolOpacityChange: (opacity: Float32Array) => void;
+    onToolColorChange: (color: RGB) => void;
+    onToolSizeChange: (size: number) => void;
+    onToolOpacityChange: (opacity: number) => void;
   }
 
   let {
@@ -51,7 +53,7 @@
       updates[1] || hsl[1],
       updates[2] || hsl[2],
     );
-    onToolColorChange(new Float32Array(rgb));
+    onToolColorChange(rgb);
   }
 
   const hueGradient = $derived.by(() => {
@@ -179,7 +181,7 @@
     {#snippet meter()}
       <DrawingControlMeter
         active={activeMenu !== "size"}
-        value={toolSize[0]}
+        value={toolSize}
         min={4}
         max={50}
         indicatorColor="blue-500"
@@ -192,10 +194,8 @@
       min={4}
       max={50}
       step={1}
-      value={toolSize[0]}
-      onValueChange={(value) => {
-        onToolSizeChange(new Float32Array([value]));
-      }}
+      value={toolSize}
+      onValueChange={onToolSizeChange}
     >
       {#snippet prepend()}
         <div class="w-1 h-1 rounded-full bg-black"></div>
@@ -212,7 +212,7 @@
     {#snippet meter()}
       <DrawingControlMeter
         active={activeMenu !== "opacity"}
-        value={toolOpacity[0]}
+        value={toolOpacity}
         min={0}
         max={1}
         indicatorColor="blue-500"
@@ -225,10 +225,8 @@
       min={0}
       max={1}
       step={0.01}
-      value={toolOpacity[0]}
-      onValueChange={(value) => {
-        onToolOpacityChange(new Float32Array([value]));
-      }}
+      value={toolOpacity}
+      onValueChange={onToolOpacityChange}
     >
       {#snippet prepend()}
         <div class="w-3 h-3 rounded-full border border-black"></div>

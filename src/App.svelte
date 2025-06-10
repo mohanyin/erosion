@@ -7,15 +7,17 @@
   import { Tools, type Tool } from "@/lib/services/drawing";
   import { GPU } from "@/lib/services/web-gpu";
 
+  type RGB = [number, number, number];
+
   let gpu = $state<GPU | null>(null);
 
   let isPlaying = $state(false);
 
   let windDirection = $state(0);
   let tool = $state<Tool>(Tools.Pencil);
-  let toolColor = $state<Float32Array>(new Float32Array([0, 0, 0]));
-  let toolSize = $state<Float32Array>(new Float32Array([10]));
-  let toolOpacity = $state<Float32Array>(new Float32Array([1]));
+  let toolColor = $state<RGB>([50, 20, 30]);
+  let toolSize = $state(10);
+  let toolOpacity = $state(1);
 
   onMount(async () => {
     gpu = await new GPU().init();
@@ -26,19 +28,28 @@
   <FileControls
     {isPlaying}
     {windDirection}
-    onPlayToggled={(play: boolean) => (isPlaying = play)}
+    onPlayToggled={(play) => (isPlaying = play)}
   />
   <DrawingControls
     {tool}
     {toolColor}
     {toolSize}
     {toolOpacity}
-    onToolChange={(newTool: Tool) => (tool = newTool)}
-    onToolColorChange={(color: Float32Array) => (toolColor = color)}
-    onToolSizeChange={(size: Float32Array) => (toolSize = size)}
-    onToolOpacityChange={(opacity: Float32Array) => (toolOpacity = opacity)}
+    onToolChange={(newTool) => (tool = newTool)}
+    onToolColorChange={(color) => (toolColor = color)}
+    onToolSizeChange={(size) => (toolSize = size)}
+    onToolOpacityChange={(opacity) => (toolOpacity = opacity)}
   />
   {#if gpu !== null}
-    <Canvas {gpu}></Canvas>
+    <Canvas
+      {gpu}
+      {isPlaying}
+      {tool}
+      {toolColor}
+      {toolSize}
+      {toolOpacity}
+      onReady={() => (isPlaying = true)}
+      onWindDirectionChange={(updated) => (windDirection = updated)}
+    />
   {/if}
 </main>

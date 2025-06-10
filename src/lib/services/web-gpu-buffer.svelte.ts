@@ -8,15 +8,12 @@ export class WebGPUBuffer<T extends BufferData> {
   private device: GPUDevice | null = null;
   private options: GPUBufferOptions;
 
-  data: GPUAllowSharedBufferSource = $state(new Float32Array([]));
+  data: GPUAllowSharedBufferSource = new Float32Array([]);
   buffer: GPUBuffer | null = $state(null);
 
-  constructor(options: GPUBufferOptions) {
+  constructor(options: GPUBufferOptions, device: GPUDevice) {
     this.options = options;
     this.data = options.data;
-  }
-
-  create(device: GPUDevice) {
     this.device = device;
     this.buffer = this.device.createBuffer({
       ...this.options,
@@ -40,9 +37,9 @@ export class WebGPUBuffer<T extends BufferData> {
     }
   }
 
-  scalar = $derived(
-    this.data instanceof Float32Array || this.data instanceof Int32Array
-      ? this.data[0]
-      : null,
-  ) as T;
+  get scalar(): T | null {
+    return this.data instanceof Float32Array || this.data instanceof Int32Array
+      ? (this.data[0] as T)
+      : null;
+  }
 }
