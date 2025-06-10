@@ -7,6 +7,9 @@ import { WebGPUBuffer, type BufferData } from "./web-gpu-buffer.svelte";
 type RawBinding = number | (() => number);
 type Binding = number;
 
+/**
+ * Analyzes shaders to tell what kind of buffers are needed for each binding.
+ */
 export default class ShaderAnalyzer {
   private shaders: Record<string, ShaderModule> = {};
   private bindGroup: {

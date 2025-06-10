@@ -21,8 +21,8 @@
 
   type RGB = [number, number, number];
 
-  const UPDATE_INTERVAL = 1000 / 60;
   const WIND_DIRECTION_VARIABILITY = 0.1;
+  const TOOL_LOCATION_BUFFER_SIZE = 4 * (MAX_SEGMENTS + 1);
 
   interface Props {
     gpu: GPU;
@@ -47,6 +47,7 @@
   }: Props = $props();
 
   let canvas: HTMLCanvasElement;
+
   const simulation = new Simulation(gpu);
   let renderPipeline: GPURenderPipeline | null = $state(null);
   let computePipelines: Record<string, GPUComputePipeline> | null =
@@ -85,7 +86,11 @@
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let waterSourceHeightBuffer: GPUBuffer | null = null;
   let waterSourceLocation = $state(new Int32Array([-1, -1]));
-  let vertices = utils.getVerticesForSquare();
+  const vertices = utils.getVerticesForSquare();
+
+  /**
+   * BUFFERS
+   */
   let vertexBuffer: GPUBuffer | null = null;
 
   const tool = gpuMemory.createBuffer<number>(
@@ -94,10 +99,9 @@
   );
   $effect(() => tool.setScalar(rawTool));
 
-  const toolLocationBufferSize = 4 * (MAX_SEGMENTS + 1);
   const toolLocation = gpuMemory.createBuffer<Float32Array>(
     Bindings.ToolLocation,
-    new Float32Array(toolLocationBufferSize).fill(-1.0),
+    new Float32Array(TOOL_LOCATION_BUFFER_SIZE).fill(-1.0),
   );
 
   const toolColor = gpuMemory.createBuffer<Float32Array>(
@@ -118,6 +122,39 @@
   );
   $effect(() => toolOpacity.setScalar(rawToolOpacity));
 
+  gpuMemory.createBuffer(
+    Bindings.GridSize,
+    new Float32Array(simulation.gridSize),
+  );
+
+  gpuMemory.createBuffer(Bindings.WaterSourceLocation, waterSourceLocation);
+  gpuMemory.createBuffer(Bindings.WaterSourceHeight, waterSourceHeight);
+
+  const waterSourceIndex =
+    waterSourceLocation[0] + waterSourceLocation[1] * simulation.gridSize[0];
+  const waterStateArray = new Int32Array(simulation.gridCellCount);
+  waterStateArray[waterSourceIndex] = 1;
+  gpuMemory.createBuffer(
+    () => (step % 2 === 0 ? Bindings.WaterStateA : Bindings.WaterStateB),
+    waterStateArray,
+  );
+  gpuMemory.createBuffer(
+    () => (step % 2 === 0 ? Bindings.WaterStateB : Bindings.WaterStateA),
+    waterStateArray,
+  );
+  gpuMemory.createBuffer(
+    () => (step % 2 === 0 ? Bindings.ColorsA : Bindings.ColorsB),
+    new Float32Array(simulation.gridCellCount * 4).fill(255.0),
+  );
+  gpuMemory.createBuffer(
+    () => (step % 2 === 0 ? Bindings.ColorsB : Bindings.ColorsA),
+    new Float32Array(simulation.gridCellCount * 4).fill(255.0),
+  );
+  gpuMemory.createBuffer(
+    Bindings.MovedMaterial,
+    new Float32Array(simulation.gridCellCount * 4).fill(-1.0),
+  );
+
   onMount(() => {
     setupSimulation();
     onReady();
@@ -125,39 +162,6 @@
 
   function setupSimulation() {
     gpu.setupGPUCanvasRendering(canvas);
-
-    const waterSourceIndex =
-      waterSourceLocation[0] + waterSourceLocation[1] * simulation.gridSize[0];
-    const waterStateArray = new Int32Array(simulation.gridCellCount);
-    waterStateArray[waterSourceIndex] = 1;
-
-    gpuMemory.createBuffer(
-      Bindings.GridSize,
-      new Float32Array(simulation.gridSize),
-    );
-
-    gpuMemory.createBuffer(Bindings.WaterSourceLocation, waterSourceLocation);
-    gpuMemory.createBuffer(Bindings.WaterSourceHeight, waterSourceHeight);
-    gpuMemory.createBuffer(
-      () => (step % 2 === 0 ? Bindings.WaterStateA : Bindings.WaterStateB),
-      waterStateArray,
-    );
-    gpuMemory.createBuffer(
-      () => (step % 2 === 0 ? Bindings.WaterStateB : Bindings.WaterStateA),
-      waterStateArray,
-    );
-    gpuMemory.createBuffer(
-      () => (step % 2 === 0 ? Bindings.ColorsA : Bindings.ColorsB),
-      new Float32Array(simulation.gridCellCount * 4).fill(255.0),
-    );
-    gpuMemory.createBuffer(
-      () => (step % 2 === 0 ? Bindings.ColorsB : Bindings.ColorsA),
-      new Float32Array(simulation.gridCellCount * 4).fill(255.0),
-    );
-    gpuMemory.createBuffer(
-      Bindings.MovedMaterial,
-      new Float32Array(simulation.gridCellCount * 4).fill(-1.0),
-    );
 
     vertexBuffer = gpu.createVertexBuffer({
       data: vertices,
@@ -287,17 +291,24 @@
   let isDrawing = $state(false);
 
   let shouldPlay = $derived(isDrawing || isPlaying);
-  let updateInterval: number | null = $state(null);
+  let animationFrameId: number | null = $state(null);
+
+  function play() {
+    animationFrameId = requestAnimationFrame(() => {
+      updateGrid();
+      play();
+    });
+  }
 
   $effect(() => {
     if (shouldPlay) {
-      if (!updateInterval) {
-        updateInterval = setInterval(updateGrid, UPDATE_INTERVAL);
+      if (!animationFrameId) {
+        play();
       }
     } else {
-      if (updateInterval) {
-        clearInterval(updateInterval);
-        updateInterval = null;
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
       }
     }
   });
@@ -342,7 +353,7 @@
   function cancelDrawing() {
     isDrawing = false;
     curveInterpolator.reset();
-    toolLocation.set(new Float32Array(toolLocationBufferSize).fill(-1.0));
+    toolLocation.set(new Float32Array(TOOL_LOCATION_BUFFER_SIZE).fill(-1.0));
   }
 </script>
 
