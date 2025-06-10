@@ -1,121 +1,66 @@
-import { SimulationGPU, Bindings } from "@/lib/services/web-gpu";
+import { GPU } from "@/lib/services/web-gpu";
 
 export const WORKGROUP_SIZE = 8;
 
+type ComputePipelineMap = Record<string, GPUComputePipeline>;
+
 export class Simulation {
-  private gpu: SimulationGPU;
+  private gpu: GPU;
 
   gridSize = $state([0, 0]);
 
   gridCellCount = $derived(this.gridSize[0] * this.gridSize[1]);
 
-  constructor(gpu: SimulationGPU) {
+  constructor(gpu: GPU) {
     this.gpu = gpu;
     this.gridSize = [window.innerWidth, window.innerHeight];
   }
 
-  createGridSizeBuffer() {
-    return this.gpu.createUniformBuffer({
-      binding: Bindings.GridSize,
-      visibility:
-        GPUShaderStage.VERTEX |
-        GPUShaderStage.FRAGMENT |
-        GPUShaderStage.COMPUTE,
-      readonly: true,
-      data: new Float32Array(this.gridSize),
-      label: "Grid Size",
+  finalizePipelines({
+    label,
+    compute,
+    vertex,
+    fragment,
+    bindGroupLayout,
+  }: {
+    label: string;
+    compute: Record<string, GPUProgrammableStage>;
+    vertex: GPUVertexState;
+    fragment: GPUFragmentState;
+    bindGroupLayout: GPUBindGroupLayout;
+  }): { compute: ComputePipelineMap; render: GPURenderPipeline } {
+    const pipelineLayout = this.gpu.device.createPipelineLayout({
+      label: `${label} Pipeline Layout`,
+      bindGroupLayouts: [bindGroupLayout],
     });
-  }
 
-  createWindDirectionBuffer(data: Float32Array) {
-    return this.gpu.createUniformBuffer({
-      binding: Bindings.WindDirection,
-      visibility: GPUShaderStage.COMPUTE,
-      readonly: true,
-      data,
-      label: "Wind Direction",
+    const computePipelines: ComputePipelineMap = {};
+    Object.entries(compute).forEach(([label, compute]) => {
+      const computePipeline = this.gpu.device.createComputePipeline({
+        label: `${label} Compute Pipeline`,
+        compute,
+        layout: pipelineLayout,
+      });
+      computePipelines[label] = computePipeline;
     });
-  }
 
-  createWaterSourceLocationBuffer(data: Int32Array) {
-    return this.gpu.createUniformBuffer({
-      binding: Bindings.WaterSourceLocation,
-      visibility: GPUShaderStage.COMPUTE,
-      readonly: true,
-      data,
-      label: "Water Source Location",
+    const renderPipeline = this.gpu.device.createRenderPipeline({
+      label: `${label} Render Pipeline`,
+      layout: pipelineLayout,
+      vertex,
+      fragment,
     });
+
+    return { compute: computePipelines, render: renderPipeline };
   }
 
-  createColorBuffers(data: Float32Array) {
-    return [
-      this.gpu.createStorageBuffer({
-        data,
-        label: "Color State A",
-        binding: (step: number) =>
-          step % 2 === 0 ? Bindings.ColorsA : Bindings.ColorsB,
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.COMPUTE,
-        readonly: true,
-      }),
-      this.gpu.createStorageBuffer({
-        data,
-        label: "Color State B",
-        binding: (step: number) =>
-          step % 2 === 0 ? Bindings.ColorsB : Bindings.ColorsA,
-        visibility: GPUShaderStage.COMPUTE,
-        readonly: false,
-      }),
-    ];
-  }
-
-  createWaterSourceHeightBuffer(data: Float32Array) {
-    return this.gpu.createUniformBuffer({
-      data,
-      label: "Water Source Height",
-      binding: Bindings.WaterSourceHeight,
-      visibility: GPUShaderStage.COMPUTE,
-      readonly: true,
-    });
-  }
-
-  createWaterStateBuffers(data: Int32Array) {
-    return [
-      this.gpu.createStorageBuffer({
-        data,
-        label: "Water State A",
-        binding: (step: number) =>
-          step % 2 === 0 ? Bindings.WaterStateA : Bindings.WaterStateB,
-        visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-        readonly: true,
-      }),
-      this.gpu.createStorageBuffer({
-        data,
-        label: "Water State B",
-        binding: (step: number) =>
-          step % 2 === 0 ? Bindings.WaterStateB : Bindings.WaterStateA,
-        visibility: GPUShaderStage.COMPUTE,
-        readonly: false,
-      }),
-    ];
-  }
-
-  createMovedMaterialBuffer(data: Float32Array) {
-    return this.gpu.createStorageBuffer({
-      data,
-      label: "Moved Material",
-      binding: Bindings.MovedMaterial,
-      visibility: GPUShaderStage.COMPUTE,
-      readonly: false,
-    });
-  }
-
-  runComputePass(
-    pipelineName: string,
+  dispatchComputePass(
+    pipeline: GPUComputePipeline,
     encoder: GPUCommandEncoder,
     bindGroup: GPUBindGroup,
   ) {
     const pass = encoder.beginComputePass();
-    pass.setPipeline(this.gpu.computePipelines[pipelineName]);
+    pass.setPipeline(pipeline);
     pass.setBindGroup(0, bindGroup);
     pass.dispatchWorkgroups(
       Math.ceil(this.gridSize[0] / WORKGROUP_SIZE),

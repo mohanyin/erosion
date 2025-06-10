@@ -12,7 +12,7 @@
   import ShaderPipeline from "@/lib/services/shader-pipeline";
   import { Simulation, WORKGROUP_SIZE } from "@/lib/services/simulation.svelte";
   import utils from "@/lib/services/utils";
-  import { Bindings, SimulationGPU } from "@/lib/services/web-gpu";
+  import { Bindings, GPU } from "@/lib/services/web-gpu";
   import drawingShader from "@/lib/shaders/compute/drawing.wgsl?raw";
   import preSimulationShader from "@/lib/shaders/compute/pre-simulation.wgsl?raw";
   import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
@@ -24,8 +24,12 @@
   const WIND_DIRECTION_VARIABILITY = 0.1;
 
   let canvas: HTMLCanvasElement | null = $state(null);
-  let gpu: SimulationGPU | null = $state(null);
+  let gpu: GPU | null = $state(null);
   let simulation: Simulation | null = $state(null);
+  let renderPipeline: GPURenderPipeline | null = $state(null);
+  let computePipelines: Record<string, GPUComputePipeline> | null =
+    $state(null);
+
   const pipeline = new ShaderPipeline({
     // fix
     groups: { MAIN: 0, WORKGROUP_SIZE },
@@ -80,8 +84,8 @@
     isPlaying = true;
   });
 
-  async function setupSimulation(): Promise<SimulationGPU> {
-    gpu = new SimulationGPU();
+  async function setupSimulation(): Promise<GPU> {
+    gpu = new GPU();
     await gpu.init();
     gpu.setupGPUCanvasRendering(canvas!);
 
@@ -175,7 +179,7 @@
       { ...Bindings },
     );
 
-    gpu.finalizePipelines({
+    const { render, compute } = simulation.finalizePipelines({
       label: "Simulation",
       compute: {
         preSimulation: {
@@ -210,12 +214,14 @@
         "Simulation Bind Group",
       ),
     });
+    renderPipeline = render;
+    computePipelines = compute;
 
     return gpu;
   }
 
   function updateGrid() {
-    if (!gpu || !gpu.isFinalized) {
+    if (!gpu || !renderPipeline) {
       throw new Error("GPU not initialized");
     }
 
@@ -242,18 +248,30 @@
 
     if (isPlaying) {
       const simulationBindGroup = bindGroup;
-      simulation.runComputePass("preSimulation", encoder, simulationBindGroup);
-      simulation.runComputePass(
-        "waterSimulation",
+      simulation.dispatchComputePass(
+        computePipelines!["preSimulation"],
         encoder,
         simulationBindGroup,
       );
-      simulation.runComputePass("simulation", encoder, simulationBindGroup);
+      simulation.dispatchComputePass(
+        computePipelines!["waterSimulation"],
+        encoder,
+        simulationBindGroup,
+      );
+      simulation.dispatchComputePass(
+        computePipelines!["simulation"],
+        encoder,
+        simulationBindGroup,
+      );
     }
 
     // TODO: DON'T OVERWRITE EROSION
     const currentBindGroup = bindGroup;
-    simulation.runComputePass("drawing", encoder, currentBindGroup);
+    simulation.dispatchComputePass(
+      computePipelines!["drawing"],
+      encoder,
+      currentBindGroup,
+    );
 
     step++;
 
@@ -268,7 +286,7 @@
       ],
     });
 
-    pass.setPipeline(gpu.renderPipeline!);
+    pass.setPipeline(renderPipeline);
     pass.setBindGroup(0, bindGroup);
     pass.setVertexBuffer(0, vertexBuffer);
     pass.draw(vertices.length / 2, simulation!.gridCellCount);
