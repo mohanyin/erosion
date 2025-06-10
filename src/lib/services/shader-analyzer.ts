@@ -1,11 +1,18 @@
 import { ResourceType, VariableInfo, WgslReflect } from "wgsl_reflect";
 
-import type ShaderModule from "./shader-module";
-import { type CreateDataBufferOptions } from "./web-gpu";
-import { WebGPUBuffer, type BufferData } from "./web-gpu-buffer.svelte";
+import { ComputeBuffer, type BufferData } from "@/lib/services/compute-buffer";
+import type ShaderModule from "@/lib/services/shader-module";
 
 type RawBinding = number | (() => number);
 type Binding = number;
+
+interface BufferDetails {
+  usage: GPUBufferUsageFlags;
+  label: string;
+  binding: RawBinding;
+  visibility: GPUFlagsConstant;
+  readonly: boolean;
+}
 
 /**
  * Analyzes shaders to tell what kind of buffers are needed for each binding.
@@ -13,14 +20,11 @@ type Binding = number;
 export default class ShaderAnalyzer {
   private shaders: Record<string, ShaderModule> = {};
   private bindGroup: {
-    buffer: WebGPUBuffer<BufferData>;
+    buffer: ComputeBuffer<BufferData>;
     binding: RawBinding;
   }[] = [];
 
-  private mergedVariableData: Record<
-    Binding,
-    Partial<CreateDataBufferOptions>
-  > = {};
+  private mergedVariableData: Record<Binding, Partial<BufferDetails>> = {};
 
   constructor(shaders: Record<string, ShaderModule>) {
     this.shaders = shaders;
@@ -57,14 +61,8 @@ export default class ShaderAnalyzer {
     }, 0);
   }
 
-  private mergeVariableData(): Record<
-    Binding,
-    Partial<CreateDataBufferOptions>
-  > {
-    const dataBufferOptions: Record<
-      Binding,
-      Partial<CreateDataBufferOptions>
-    > = {};
+  private mergeVariableData(): Record<Binding, Partial<BufferDetails>> {
+    const dataBufferOptions: Record<Binding, Partial<BufferDetails>> = {};
 
     for (const shader of Object.values(this.shaders)) {
       const reflection = shader.reflect;

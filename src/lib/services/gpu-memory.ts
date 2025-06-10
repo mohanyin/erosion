@@ -1,8 +1,5 @@
+import { ComputeBuffer, type BufferData } from "@/lib/services/compute-buffer";
 import type ShaderAnalyzer from "@/lib/services/shader-analyzer";
-import {
-  WebGPUBuffer,
-  type BufferData,
-} from "@/lib/services/web-gpu-buffer.svelte";
 
 export type RawBinding = number | (() => number);
 type Binding = number;
@@ -14,7 +11,7 @@ interface CreateVertexBufferOptions {
 
 export default class GPUMemory {
   private bindGroup: {
-    buffer: WebGPUBuffer<BufferData>;
+    buffer: ComputeBuffer<BufferData>;
     binding: RawBinding;
   }[] = [];
   private vertexAttributes: GPUVertexAttribute[][] = [];
@@ -36,7 +33,7 @@ export default class GPUMemory {
     data: GPUAllowSharedBufferSource,
   ) {
     const binding = this.calculateBinding(rawBinding);
-    const buffer = new WebGPUBuffer<T>(
+    const buffer = new ComputeBuffer<T>(
       {
         data,
         usage: this.shaderAnalyzer.getVariableData(binding).usage!,

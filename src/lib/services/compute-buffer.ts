@@ -4,7 +4,7 @@ export type GPUBufferOptions = Omit<GPUBufferDescriptor, "size"> & {
   data: GPUAllowSharedBufferSource;
 };
 
-export class WebGPUBuffer<T extends BufferData> {
+export class ComputeBuffer<T extends BufferData> {
   private device: GPUDevice | null = null;
   private options: GPUBufferOptions;
 
