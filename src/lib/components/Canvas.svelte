@@ -57,14 +57,23 @@
     WORKGROUP_SIZE,
     ...Bindings,
   });
-  const preSimulationShaderModule =
-    shaderModuleBuilder.build(preSimulationShader);
-  const simulationShaderModule = shaderModuleBuilder.build(simulationShader);
+  const preSimulationShaderModule = shaderModuleBuilder.build(
+    preSimulationShader,
+    gpu.device,
+  );
+  const simulationShaderModule = shaderModuleBuilder.build(
+    simulationShader,
+    gpu.device,
+  );
   const waterSimulationShaderModule = shaderModuleBuilder.build(
     waterSimulationShader,
+    gpu.device,
   );
-  const drawingShaderModule = shaderModuleBuilder.build(drawingShader);
-  const drawShaderModule = shaderModuleBuilder.build(drawShader);
+  const drawingShaderModule = shaderModuleBuilder.build(
+    drawingShader,
+    gpu.device,
+  );
+  const drawShaderModule = shaderModuleBuilder.build(drawShader, gpu.device);
 
   const shaderAnalyzer = new ShaderAnalyzer({
     preSimulation: preSimulationShaderModule,
@@ -169,33 +178,18 @@
     const { render, compute } = simulation.finalizePipelines({
       label: "Simulation",
       compute: {
-        preSimulation: {
-          module: preSimulationShaderModule.finalize(gpu.device),
-          entryPoint: "computeMain",
-        },
-        simulation: {
-          module: simulationShaderModule.finalize(gpu.device),
-          entryPoint: "computeMain",
-        },
-        waterSimulation: {
-          module: waterSimulationShaderModule.finalize(gpu.device),
-          entryPoint: "computeMain",
-        },
-        drawing: {
-          module: drawingShaderModule.finalize(gpu.device),
-          entryPoint: "computeMain",
-        },
+        preSimulation: preSimulationShaderModule.getComputeProgrammableStage(),
+        simulation: simulationShaderModule.getComputeProgrammableStage(),
+        waterSimulation:
+          waterSimulationShaderModule.getComputeProgrammableStage(),
+        drawing: drawingShaderModule.getComputeProgrammableStage(),
       },
-      vertex: {
-        module: drawShaderModule.finalize(gpu.device),
-        entryPoint: "vertexMain",
+      vertex: drawShaderModule.getVertexProgrammableStage({
         buffers: gpuMemory.getVertexBufferLayout(),
-      },
-      fragment: {
-        module: drawShaderModule.finalize(gpu.device),
-        entryPoint: "fragmentMain",
-        targets: [{ format: gpu.format! }],
-      },
+      }),
+      fragment: drawShaderModule.getFragmentProgrammableStage({
+        targets: [{ format: gpu.format }],
+      }),
       bindGroupLayout: gpuMemory.createBindGroupLayout(
         gpu.device,
         "Simulation Bind Group",

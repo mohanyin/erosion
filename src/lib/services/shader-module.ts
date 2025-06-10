@@ -12,12 +12,12 @@ export class ShaderModuleBuilder {
     this.interpolations = interpolations;
   }
 
-  build(shader: string) {
+  build(shader: string, gpuDevice: GPUDevice) {
     const code = this.interpolateShader(
       this.utils + shader,
       this.interpolations,
     );
-    return new ShaderModule(code);
+    return new ShaderModule(code, gpuDevice);
   }
 
   private interpolateShader(
@@ -32,15 +32,40 @@ export class ShaderModuleBuilder {
 }
 
 export default class ShaderModule {
-  private code: string;
   reflect: WgslReflect;
+  module: GPUShaderModule;
 
-  constructor(code: string) {
-    this.code = code;
+  constructor(
+    private readonly code: string,
+    private readonly gpuDevice: GPUDevice,
+  ) {
     this.reflect = new WgslReflect(code);
+    console.log(this.reflect);
+    this.module = this.gpuDevice.createShaderModule({ code: this.code });
   }
 
-  finalize(device: GPUDevice) {
-    return device.createShaderModule({ code: this.code });
+  getComputeProgrammableStage() {
+    return {
+      module: this.module,
+      entryPoint: this.reflect.entry.compute[0].name,
+    };
+  }
+
+  getVertexProgrammableStage(options: Partial<GPUVertexState> = {}) {
+    return {
+      module: this.module,
+      entryPoint: this.reflect.entry.vertex[0].name,
+      ...options,
+    };
+  }
+
+  getFragmentProgrammableStage(
+    options: Required<Pick<GPUFragmentState, "targets">>,
+  ): GPUFragmentState {
+    return {
+      module: this.module,
+      entryPoint: this.reflect.entry.fragment[0].name,
+      ...options,
+    };
   }
 }
