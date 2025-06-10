@@ -91,7 +91,10 @@
   /**
    * BUFFERS
    */
-  let vertexBuffer: GPUBuffer | null = null;
+  const vertexBuffer: GPUBuffer = gpuMemory.createVertexBuffer({
+    data: vertices,
+    label: "Cell vertices",
+  });
 
   const tool = gpuMemory.createBuffer<number>(
     Bindings.Tool,
@@ -163,18 +166,6 @@
   function setupSimulation() {
     gpu.setupGPUCanvasRendering(canvas);
 
-    vertexBuffer = gpu.createVertexBuffer({
-      data: vertices,
-      label: "Cell vertices",
-      attributes: [
-        {
-          format: "float32x2" as GPUVertexFormat,
-          offset: 0,
-          shaderLocation: 0,
-        },
-      ],
-    });
-
     const { render, compute } = simulation.finalizePipelines({
       label: "Simulation",
       compute: {
@@ -198,7 +189,7 @@
       vertex: {
         module: drawShaderModule.finalize(gpu.device),
         entryPoint: "vertexMain",
-        buffers: gpu.getVertexBufferLayout(),
+        buffers: gpuMemory.getVertexBufferLayout(),
       },
       fragment: {
         module: drawShaderModule.finalize(gpu.device),

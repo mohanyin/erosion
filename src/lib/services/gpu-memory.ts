@@ -7,17 +7,26 @@ import {
 export type RawBinding = number | (() => number);
 type Binding = number;
 
+interface CreateVertexBufferOptions {
+  data: Float32Array;
+  label: string;
+}
+
 export default class GPUMemory {
   private bindGroup: {
     buffer: WebGPUBuffer<BufferData>;
     binding: RawBinding;
   }[] = [];
+  private vertexAttributes: GPUVertexAttribute[][] = [];
 
   constructor(
     private readonly shaderAnalyzer: ShaderAnalyzer,
     private readonly gpuDevice: GPUDevice,
   ) {}
 
+  /**
+   * NORMAL BINDINGS
+   */
   private calculateBinding(binding: Binding | (() => Binding)) {
     return typeof binding === "function" ? binding() : binding;
   }
@@ -92,5 +101,35 @@ export default class GPUMemory {
       layout: this.createBindGroupLayout(device, label),
       entries: this.getBindGroupEntries(label + "entries"),
     });
+  }
+
+  /**
+   * VERTEX BINDINGS
+   *
+   * This unfortunately has to be separate, since we don't have a way
+   * to reflect on the vertex buffers.
+   */
+  getVertexBufferLayout(): GPUVertexBufferLayout[] {
+    return this.vertexAttributes.map((attributes) => ({
+      arrayStride: 8,
+      attributes,
+    }));
+  }
+
+  createVertexBuffer({ label, data }: CreateVertexBufferOptions) {
+    const buffer = this.gpuDevice.createBuffer({
+      label,
+      size: data.byteLength,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    this.gpuDevice.queue.writeBuffer(buffer, 0, data);
+    this.vertexAttributes.push([
+      {
+        format: "float32x2" as GPUVertexFormat,
+        offset: 0,
+        shaderLocation: 0,
+      },
+    ]);
+    return buffer;
   }
 }
