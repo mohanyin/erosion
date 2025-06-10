@@ -108,94 +108,13 @@ export function interpolateShader(
 }
 
 export class GPU extends BaseGPU {
-  private _buffers: Map<string, DataBufferWithOptions> = new Map();
   private _vertexBuffers: Map<string, CreateVertexBufferOptions> = new Map();
-
-  private mapUsageToBufferType(
-    usage: GPUBufferUsageFlags,
-    readonly: boolean,
-  ): GPUBufferBindingLayout {
-    if (usage & GPUBufferUsage.UNIFORM) {
-      return { type: "uniform" };
-    } else if (usage & GPUBufferUsage.STORAGE && !readonly) {
-      return { type: "storage" };
-    } else if (usage & GPUBufferUsage.STORAGE && readonly) {
-      return { type: "read-only-storage" };
-    } else {
-      throw new Error("Unknown buffer usage");
-    }
-  }
-
-  getBindGroupLayout(step: number = 0): GPUBindGroupLayoutEntry[] {
-    return Array.from(this._buffers.values()).map((buffer) => {
-      const binding =
-        typeof buffer.binding === "function"
-          ? buffer.binding(step)
-          : buffer.binding;
-      return {
-        binding,
-        visibility: buffer.visibility,
-        buffer: this.mapUsageToBufferType(buffer.usage, buffer.readonly),
-      };
-    });
-  }
-
-  getBindGroupEntries(step: number = 0): GPUBindGroupEntry[] {
-    return Array.from(this._buffers.values()).map((buffer) => {
-      const binding =
-        typeof buffer.binding === "function"
-          ? buffer.binding(step)
-          : buffer.binding;
-      return {
-        binding,
-        resource: { buffer: buffer.buffer },
-      };
-    });
-  }
 
   getVertexBufferLayout(): GPUVertexBufferLayout[] {
     return Array.from(this._vertexBuffers.values()).map((buffer) => ({
       arrayStride: 8,
       attributes: buffer.attributes,
     }));
-  }
-
-  createAndCopyBuffer({
-    binding,
-    visibility = GPUShaderStage.COMPUTE,
-    data,
-    label,
-    usage,
-    readonly = false,
-  }: CreateDataBufferOptions) {
-    const buffer = this.device.createBuffer({
-      label,
-      size: data.byteLength,
-      usage,
-    });
-    this.device.queue.writeBuffer(buffer, 0, data);
-    this._buffers.set(label, {
-      binding,
-      visibility,
-      readonly,
-      buffer,
-      usage,
-    });
-    return buffer;
-  }
-
-  createUniformBuffer(options: CreateSpecificDataBufferOptions) {
-    return this.createAndCopyBuffer({
-      ...options,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-  }
-
-  createStorageBuffer(options: CreateSpecificDataBufferOptions) {
-    return this.createAndCopyBuffer({
-      ...options,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
   }
 
   createVertexBuffer({ label, data, attributes }: CreateVertexBufferOptions) {
@@ -207,10 +126,6 @@ export class GPU extends BaseGPU {
     this.device.queue.writeBuffer(buffer, 0, data);
     this._vertexBuffers.set(label, { label, data, attributes });
     return buffer;
-  }
-
-  writeToBuffer(buffer: GPUBuffer, data: GPUAllowSharedBufferSource) {
-    this.device.queue.writeBuffer(buffer, 0, data);
   }
 
   createShaderModule(
@@ -237,20 +152,18 @@ export class SimulationGPU extends GPU {
     compute,
     vertex,
     fragment,
+    bindGroupLayout,
   }: {
     label: string;
     compute: Record<string, GPUProgrammableStage>;
     vertex: GPUVertexState;
     fragment: GPUFragmentState;
+    bindGroupLayout: GPUBindGroupLayout;
   }): { compute: ComputePipelineMap; render: GPURenderPipeline } {
     if (this.isFinalized) {
       return { compute: this.computePipelines, render: this.renderPipeline! };
     }
 
-    const bindGroupLayout = this.device.createBindGroupLayout({
-      label: `${label} Bind Group Layout`,
-      entries: this.getBindGroupLayout(),
-    });
     const pipelineLayout = this.device.createPipelineLayout({
       label: `${label} Pipeline Layout`,
       bindGroupLayouts: [bindGroupLayout],

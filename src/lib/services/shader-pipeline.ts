@@ -1,19 +1,24 @@
 import { ResourceType, VariableInfo, WgslReflect } from "wgsl_reflect";
 
-import {
-  interpolateShader,
-  GPU,
-  type CreateDataBufferOptions,
-} from "./web-gpu";
+import { interpolateShader, type CreateDataBufferOptions } from "./web-gpu";
+import { WebGPUBuffer, type BufferData } from "./web-gpu-buffer.svelte";
 
+type RawBinding = number | (() => number);
 type Binding = number;
 type Group = number;
 
 export default class ShaderPipeline {
-  private gpu!: GPU;
   private shaders: Record<string, string> = {};
   private reflect: Record<string, WgslReflect> = {};
-  private buffers: Record<string, GPUBuffer> = {};
+  private bindGroup: {
+    buffer: WebGPUBuffer<BufferData>;
+    binding: RawBinding;
+  }[] = [];
+
+  private mergedVariableData: Record<
+    Binding,
+    Partial<CreateDataBufferOptions>
+  > = {};
 
   constructor({
     groups,
@@ -28,6 +33,7 @@ export default class ShaderPipeline {
       this.shaders[name] = interpolateShader(code, { ...groups, ...bindings });
       this.reflect[name] = new WgslReflect(this.shaders[name]);
     });
+    this.mergedVariableData = this.mergeVariableData();
   }
 
   private getUsage(variable: VariableInfo) {
@@ -60,7 +66,7 @@ export default class ShaderPipeline {
     }, 0);
   }
 
-  private mergeShaderReflections(): Record<
+  private mergeVariableData(): Record<
     Binding,
     Partial<CreateDataBufferOptions>
   > {
@@ -93,26 +99,76 @@ export default class ShaderPipeline {
     return dataBufferOptions;
   }
 
-  initBuffers(gpu: GPU, values: Record<Binding, GPUAllowSharedBufferSource>) {
-    this.gpu = gpu;
+  private calculateBinding(binding: Binding | (() => Binding)) {
+    return typeof binding === "function" ? binding() : binding;
+  }
 
-    const variables = this.mergeShaderReflections();
-    Object.entries(variables).forEach(([binding, variable]) => {
-      this.buffers[binding] = this.gpu.createAndCopyBuffer({
-        ...variable,
-        data: values[Number(binding)],
-      } as CreateDataBufferOptions);
+  createBuffer<T extends BufferData>(
+    rawBinding: RawBinding,
+    data: GPUAllowSharedBufferSource,
+  ) {
+    const binding = this.calculateBinding(rawBinding);
+    const buffer = new WebGPUBuffer<T>({
+      data,
+      usage: this.mergedVariableData[binding].usage!,
+    });
+    this.bindGroup.push({
+      buffer,
+      binding: rawBinding,
+    });
+    return buffer;
+  }
+
+  private mapUsageToBufferType(
+    usage: GPUBufferUsageFlags,
+    readonly: boolean,
+  ): GPUBufferBindingLayout {
+    if (usage & GPUBufferUsage.UNIFORM) {
+      return { type: "uniform" };
+    } else if (usage & GPUBufferUsage.STORAGE && !readonly) {
+      return { type: "storage" };
+    } else if (usage & GPUBufferUsage.STORAGE && readonly) {
+      return { type: "read-only-storage" };
+    } else {
+      throw new Error("Unknown buffer usage");
+    }
+  }
+
+  private getBindGroupLayout(label: string): GPUBindGroupLayoutEntry[] {
+    return this.bindGroup.map((bindGroup) => {
+      const binding = this.calculateBinding(bindGroup.binding);
+      const variable = this.mergedVariableData[binding];
+      return {
+        label: label,
+        binding,
+        visibility: variable.visibility!,
+        buffer: this.mapUsageToBufferType(variable.usage!, variable.readonly!),
+      };
     });
   }
 
-  updateBuffer(binding: Binding, value: GPUAllowSharedBufferSource) {
-    const buffer = this.buffers[binding];
-    if (!buffer) {
-      throw new Error(`Buffer not found for binding ${binding}`);
-    }
-
-    this.gpu.writeToBuffer(buffer, value);
+  private getBindGroupEntries(label: string): GPUBindGroupEntry[] {
+    return this.bindGroup.map((bindGroup) => {
+      const binding = this.calculateBinding(bindGroup.binding);
+      return {
+        binding,
+        resource: { buffer: bindGroup.buffer.buffer!, label: label + binding },
+      };
+    });
   }
 
-  // binding groups and all that nonsense
+  createBindGroupLayout(device: GPUDevice, label: string) {
+    return device.createBindGroupLayout({
+      label,
+      entries: this.getBindGroupLayout(label + "layout"),
+    });
+  }
+
+  createBindGroup(device: GPUDevice, label: string) {
+    return device.createBindGroup({
+      label,
+      layout: this.createBindGroupLayout(device, label),
+      entries: this.getBindGroupEntries(label + "entries"),
+    });
+  }
 }
