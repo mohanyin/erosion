@@ -1,42 +1,344 @@
 <script lang="ts">
-  let toolLocation: Float32Array | null = $state(null);
+  import { onMount } from "svelte";
+
+  import {
+    CurveInterpolator,
+    MAX_SEGMENTS,
+  } from "@/lib/services/curve-intepolator";
+  import { Tools, type Tool } from "@/lib/services/drawing";
+  import ShaderAnalyzer from "@/lib/services/shader-analyzer";
+  import { ShaderModuleBuilder } from "@/lib/services/shader-module";
+  import { Simulation, WORKGROUP_SIZE } from "@/lib/services/simulation.svelte";
+  import utils from "@/lib/services/utils";
+  import { Bindings, GPU } from "@/lib/services/web-gpu";
+  import drawingShader from "@/lib/shaders/compute/drawing.wgsl?raw";
+  import preSimulationShader from "@/lib/shaders/compute/pre-simulation.wgsl?raw";
+  import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
+  import shaderUtils from "@/lib/shaders/compute/utils.wgsl?raw";
+  import waterSimulationShader from "@/lib/shaders/compute/water-simulation.wgsl?raw";
+  import drawShader from "@/lib/shaders/draw.wgsl?raw";
+
+  const UPDATE_INTERVAL = 1000 / 60;
+  const WIND_DIRECTION_VARIABILITY = 0.1;
 
   interface Props {
-    onToolMove: (event: Float32Array | null) => void;
-    canvas: HTMLCanvasElement | null;
+    gpu: GPU;
   }
 
-  let { onToolMove, canvas = $bindable() }: Props = $props();
+  const { gpu }: Props = $props();
+
+  let canvas: HTMLCanvasElement | null = $state(null);
+  let simulation: Simulation | null = $state(null);
+  let renderPipeline: GPURenderPipeline | null = $state(null);
+  let computePipelines: Record<string, GPUComputePipeline> | null =
+    $state(null);
+
+  const shaderModuleBuilder = new ShaderModuleBuilder(shaderUtils, {
+    WORKGROUP_SIZE,
+    ...Bindings,
+  });
+  const preSimulationShaderModule =
+    shaderModuleBuilder.build(preSimulationShader);
+  const simulationShaderModule = shaderModuleBuilder.build(simulationShader);
+  const waterSimulationShaderModule = shaderModuleBuilder.build(
+    waterSimulationShader,
+  );
+  const drawingShaderModule = shaderModuleBuilder.build(drawingShader);
+  const drawShaderModule = shaderModuleBuilder.build(drawShader);
+
+  const shaderAnalyzer = new ShaderAnalyzer({
+    preSimulation: preSimulationShaderModule,
+    simulation: simulationShaderModule,
+    waterSimulation: waterSimulationShaderModule,
+    drawing: drawingShaderModule,
+    draw: drawShaderModule,
+  });
+
+  let step = 0;
+
+  const windDirection = shaderAnalyzer.createBuffer<number>(
+    Bindings.WindDirection,
+    new Float32Array([Math.random() * 2 * Math.PI]),
+  );
+  let waterSourceHeight = $state(new Float32Array([0.01]));
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  let waterSourceHeightBuffer: GPUBuffer | null = null;
+  let waterSourceLocation = $state(new Int32Array([-1, -1]));
+  let vertices = utils.getVerticesForSquare();
+  let vertexBuffer: GPUBuffer | null = null;
+
+  const tool = shaderAnalyzer.createBuffer<Tool>(
+    Bindings.Tool,
+    new Int32Array([Tools.Pencil]),
+  );
+
+  const toolLocationBufferSize = 4 * (MAX_SEGMENTS + 1);
+  const toolLocation = shaderAnalyzer.createBuffer<Float32Array>(
+    Bindings.ToolLocation,
+    new Float32Array(toolLocationBufferSize).fill(-1.0),
+  );
+  const toolColor = shaderAnalyzer.createBuffer<Float32Array>(
+    Bindings.ToolColor,
+    new Float32Array([0, 0, 0]),
+  );
+  const toolSize = shaderAnalyzer.createBuffer<Float32Array>(
+    Bindings.ToolSize,
+    new Float32Array([24]),
+  );
+  const toolOpacity = shaderAnalyzer.createBuffer<Float32Array>(
+    Bindings.ToolOpacity,
+    new Float32Array([1]),
+  );
+
+  onMount(() => {
+    setupSimulation();
+    isPlaying = true;
+  });
+
+  function setupSimulation() {
+    gpu.setupGPUCanvasRendering(canvas!);
+
+    simulation = new Simulation(gpu);
+
+    const waterSourceIndex =
+      waterSourceLocation[0] + waterSourceLocation[1] * simulation.gridSize[0];
+    const waterStateArray = new Int32Array(simulation.gridCellCount);
+    waterStateArray[waterSourceIndex] = 1;
+
+    shaderAnalyzer
+      .createBuffer(Bindings.GridSize, new Float32Array(simulation.gridSize))
+      .create(gpu.device);
+    windDirection.create(gpu.device);
+    shaderAnalyzer
+      .createBuffer(Bindings.WaterSourceLocation, waterSourceLocation)
+      .create(gpu.device);
+    shaderAnalyzer
+      .createBuffer(Bindings.WaterSourceHeight, waterSourceHeight)
+      .create(gpu.device);
+    shaderAnalyzer
+      .createBuffer(
+        () => (step % 2 === 0 ? Bindings.WaterStateA : Bindings.WaterStateB),
+        waterStateArray,
+      )
+      .create(gpu.device);
+    shaderAnalyzer
+      .createBuffer(
+        () => (step % 2 === 0 ? Bindings.WaterStateB : Bindings.WaterStateA),
+        waterStateArray,
+      )
+      .create(gpu.device);
+    tool.create(gpu.device);
+    toolLocation.create(gpu.device);
+    toolColor.create(gpu.device);
+    toolSize.create(gpu.device);
+    toolOpacity.create(gpu.device);
+    shaderAnalyzer
+      .createBuffer(
+        () => (step % 2 === 0 ? Bindings.ColorsA : Bindings.ColorsB),
+        new Float32Array(simulation.gridCellCount * 4).fill(255.0),
+      )
+      .create(gpu.device);
+    shaderAnalyzer
+      .createBuffer(
+        () => (step % 2 === 0 ? Bindings.ColorsB : Bindings.ColorsA),
+        new Float32Array(simulation.gridCellCount * 4).fill(255.0),
+      )
+      .create(gpu.device);
+    shaderAnalyzer
+      .createBuffer(
+        Bindings.MovedMaterial,
+        new Float32Array(simulation.gridCellCount * 4).fill(-1.0),
+      )
+      .create(gpu.device);
+
+    vertexBuffer = gpu.createVertexBuffer({
+      data: vertices,
+      label: "Cell vertices",
+      attributes: [
+        {
+          format: "float32x2" as GPUVertexFormat,
+          offset: 0,
+          shaderLocation: 0,
+        },
+      ],
+    });
+
+    const { render, compute } = simulation.finalizePipelines({
+      label: "Simulation",
+      compute: {
+        preSimulation: {
+          module: preSimulationShaderModule.finalize(gpu.device),
+          entryPoint: "computeMain",
+        },
+        simulation: {
+          module: simulationShaderModule.finalize(gpu.device),
+          entryPoint: "computeMain",
+        },
+        waterSimulation: {
+          module: waterSimulationShaderModule.finalize(gpu.device),
+          entryPoint: "computeMain",
+        },
+        drawing: {
+          module: drawingShaderModule.finalize(gpu.device),
+          entryPoint: "computeMain",
+        },
+      },
+      vertex: {
+        module: drawShaderModule.finalize(gpu.device),
+        entryPoint: "vertexMain",
+        buffers: gpu.getVertexBufferLayout(),
+      },
+      fragment: {
+        module: drawShaderModule.finalize(gpu.device),
+        entryPoint: "fragmentMain",
+        targets: [{ format: gpu.format! }],
+      },
+      bindGroupLayout: shaderAnalyzer.createBindGroupLayout(
+        gpu.device,
+        "Simulation Bind Group",
+      ),
+    });
+    renderPipeline = render;
+    computePipelines = compute;
+
+    return gpu;
+  }
+
+  function updateGrid() {
+    if (!gpu || !renderPipeline) {
+      throw new Error("GPU not initialized");
+    }
+
+    if (!simulation) {
+      throw new Error("Simulation not initialized");
+    }
+
+    const updatedWindDirection =
+      utils.randomlyNudgeValue(
+        windDirection.scalar,
+        WIND_DIRECTION_VARIABILITY,
+      ) %
+      (2 * Math.PI);
+    windDirection.setScalar(updatedWindDirection);
+
+    // waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
+    // gpu.writeToBuffer(waterSourceHeightBuffer!, waterSourceHeight);
+
+    const encoder = gpu.device.createCommandEncoder();
+    const bindGroup = shaderAnalyzer.createBindGroup(
+      gpu.device,
+      "Simulation Bind Group",
+    );
+
+    if (isPlaying) {
+      const simulationBindGroup = bindGroup;
+      simulation.dispatchComputePass(
+        computePipelines!["preSimulation"],
+        encoder,
+        simulationBindGroup,
+      );
+      simulation.dispatchComputePass(
+        computePipelines!["waterSimulation"],
+        encoder,
+        simulationBindGroup,
+      );
+      simulation.dispatchComputePass(
+        computePipelines!["simulation"],
+        encoder,
+        simulationBindGroup,
+      );
+    }
+
+    // TODO: DON'T OVERWRITE EROSION
+    const currentBindGroup = bindGroup;
+    simulation.dispatchComputePass(
+      computePipelines!["drawing"],
+      encoder,
+      currentBindGroup,
+    );
+
+    step++;
+
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: gpu.context!.getCurrentTexture().createView(),
+          loadOp: "clear",
+          clearValue: { r: 0, g: 0, b: 0.0, a: 1.0 },
+          storeOp: "store",
+        },
+      ],
+    });
+
+    pass.setPipeline(renderPipeline);
+    pass.setBindGroup(0, bindGroup);
+    pass.setVertexBuffer(0, vertexBuffer);
+    pass.draw(vertices.length / 2, simulation!.gridCellCount);
+
+    pass.end();
+    gpu.device.queue.submit([encoder.finish()]);
+  }
+
+  let isDrawing = $state(false);
+  let isPlaying = $state(false);
+
+  let shouldPlay = $derived(isDrawing || isPlaying);
+  let updateInterval: number | null = $state(null);
+
+  $effect(() => {
+    if (shouldPlay) {
+      if (!updateInterval) {
+        updateInterval = setInterval(updateGrid, UPDATE_INTERVAL);
+      }
+    } else {
+      if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+      }
+    }
+  });
+
+  const curveInterpolator = new CurveInterpolator();
+
+  function startDrawing(event: PointerEvent) {
+    isDrawing = true;
+    setToolLocation(event);
+  }
+
+  function onPointerEnter(event: PointerEvent) {
+    // "1" means primary button (left mouse button)
+    if (event.buttons === 1) {
+      startDrawing(event);
+    }
+  }
 
   function setToolLocation(event: MouseEvent) {
-    if (!canvas) {
+    if (!canvas || !isDrawing) {
       return;
     }
 
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    toolLocation = new Float32Array([x, y]);
-    onToolMove(toolLocation);
+    const remappedLocation = [
+      (x / canvas!.clientWidth) * simulation!.gridSize[0],
+      simulation!.gridSize[1] -
+        (y / canvas!.clientHeight) * simulation!.gridSize[1],
+    ];
+
+    curveInterpolator.addControlPoint(remappedLocation);
+    const newPoints = curveInterpolator.getNewestPoints();
+    const locations = [
+      ...newPoints.flat(),
+      ...new Array(4 * (MAX_SEGMENTS + 1 - newPoints.length)).fill(-1.0),
+    ];
+    toolLocation.set(new Float32Array(locations));
   }
 
-  function onCanvasMouseMove(event: MouseEvent) {
-    if (!toolLocation) {
-      return;
-    }
-    setToolLocation(event);
-  }
-
-  function clearToolLocation() {
-    toolLocation = null;
-    onToolMove(toolLocation);
-  }
-
-  function onPointerEnter(event: PointerEvent) {
-    // "1" means primary button (left mouse button)
-    if (event.buttons === 1) {
-      setToolLocation(event);
-    }
+  function cancelDrawing() {
+    isDrawing = false;
+    curveInterpolator.reset();
+    toolLocation.set(new Float32Array(toolLocationBufferSize).fill(-1.0));
   }
 </script>
 
@@ -44,11 +346,11 @@
   id="canvas"
   class="canvas"
   bind:this={canvas}
-  onpointerdown={setToolLocation}
-  onpointermove={onCanvasMouseMove}
-  onpointerup={clearToolLocation}
+  onpointerdown={startDrawing}
+  onpointermove={setToolLocation}
+  onpointerup={cancelDrawing}
   onpointerenter={onPointerEnter}
-  onpointerleave={clearToolLocation}
+  onpointerleave={cancelDrawing}
 ></canvas>
 
 <style lang="scss">

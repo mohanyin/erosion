@@ -1,15 +1,14 @@
 import { ResourceType, VariableInfo, WgslReflect } from "wgsl_reflect";
 
-import { interpolateShader, type CreateDataBufferOptions } from "./web-gpu";
+import type ShaderModule from "./shader-module";
+import { type CreateDataBufferOptions } from "./web-gpu";
 import { WebGPUBuffer, type BufferData } from "./web-gpu-buffer.svelte";
 
 type RawBinding = number | (() => number);
 type Binding = number;
-type Group = number;
 
-export default class ShaderPipeline {
-  private shaders: Record<string, string> = {};
-  private reflect: Record<string, WgslReflect> = {};
+export default class ShaderAnalyzer {
+  private shaders: Record<string, ShaderModule> = {};
   private bindGroup: {
     buffer: WebGPUBuffer<BufferData>;
     binding: RawBinding;
@@ -20,19 +19,8 @@ export default class ShaderPipeline {
     Partial<CreateDataBufferOptions>
   > = {};
 
-  constructor({
-    groups,
-    bindings,
-    shaders,
-  }: {
-    groups: Record<string, Group>;
-    bindings: Record<string, Binding>;
-    shaders: Record<string, string>;
-  }) {
-    Object.entries(shaders).forEach(([name, code]) => {
-      this.shaders[name] = interpolateShader(code, { ...groups, ...bindings });
-      this.reflect[name] = new WgslReflect(this.shaders[name]);
-    });
+  constructor(shaders: Record<string, ShaderModule>) {
+    this.shaders = shaders;
     this.mergedVariableData = this.mergeVariableData();
   }
 
@@ -75,7 +63,8 @@ export default class ShaderPipeline {
       Partial<CreateDataBufferOptions>
     > = {};
 
-    for (const reflection of Object.values(this.reflect)) {
+    for (const shader of Object.values(this.shaders)) {
+      const reflection = shader.reflect;
       for (const variable of [...reflection.uniforms, ...reflection.storage]) {
         if (!dataBufferOptions[variable.binding]) {
           dataBufferOptions[variable.binding] = {

@@ -20,9 +20,9 @@ export class BaseGPU {
   private _context: GPUCanvasContext | null = null;
   private _format: GPUTextureFormat | null = null;
 
-  async init() {
+  async init(): Promise<this> {
     if (this._device) {
-      return;
+      return this;
     }
 
     if (!navigator.gpu) {
@@ -37,6 +37,7 @@ export class BaseGPU {
     }
 
     this._device = await adapter.requestDevice();
+    return this;
   }
 
   get device() {
@@ -97,16 +98,6 @@ interface CreateVertexBufferOptions {
   attributes: GPUVertexAttribute[];
 }
 
-export function interpolateShader(
-  code: string,
-  interpolate: Record<string, string | number> = {},
-) {
-  Object.entries(interpolate).forEach(([key, value]) => {
-    code = code.replaceAll(`{{${key}}}`, value.toString());
-  });
-  return code;
-}
-
 export class GPU extends BaseGPU {
   private _vertexBuffers: Map<string, CreateVertexBufferOptions> = new Map();
 
@@ -126,16 +117,5 @@ export class GPU extends BaseGPU {
     this.device.queue.writeBuffer(buffer, 0, data);
     this._vertexBuffers.set(label, { label, data, attributes });
     return buffer;
-  }
-
-  createShaderModule(
-    options: GPUShaderModuleDescriptor,
-    interpolate: Record<string, string | number> = {},
-  ) {
-    const code = interpolateShader(options.code, interpolate);
-    return this.device.createShaderModule({
-      ...options,
-      code,
-    });
   }
 }
