@@ -173,7 +173,7 @@
 <div>
   <canvas
     id="canvas"
-    class="canvas"
+    class="fixed top-0 left-0 w-full h-full cursor-none"
     bind:this={canvas}
     onpointerdown={startDrawing}
     onpointermove={onPointerMove}
@@ -181,28 +181,8 @@
     onpointerenter={onPointerEnter}
     onpointerleave={onPointerLeave}
   ></canvas>
-  <div class="cursor" style={cursorStyle}></div>
+  <div
+    class="fixed rounded-full pointer-events-none border-2 border-black translate-x-[-50%] translate-y-[-50%]"
+    style={cursorStyle}
+  ></div>
 </div>
-
-<style lang="scss">
-  .canvas {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    cursor: none;
-  }
-
-  .cursor {
-    pointer-events: none;
-    position: fixed;
-    width: 10px;
-    height: 10px;
-    top: 0;
-    left: 0;
-    border-radius: 50%;
-    border: 1px solid black;
-    transform: translate(-50%, -50%);
-  }
-</style>
