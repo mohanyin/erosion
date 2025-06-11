@@ -12,6 +12,7 @@
   let gpu = $state<GPU | null>(null);
 
   let isPlaying = $state(false);
+  let uploadedImage = $state<File | null>(null);
 
   let windDirection = $state(0);
   let tool = $state<Tool>(Tools.Pencil);
@@ -22,6 +23,17 @@
   onMount(async () => {
     gpu = await new GPU().init();
   });
+
+  function downloadImage() {
+    const canvas: HTMLCanvasElement = document.querySelector(
+      "[data-export-target]",
+    )!;
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/png", 1.0);
+    link.download = "erosion-art.png";
+    link.click();
+    link.remove();
+  }
 </script>
 
 <main>
@@ -29,6 +41,8 @@
     {isPlaying}
     {windDirection}
     onPlayToggled={(play) => (isPlaying = play)}
+    onDownload={downloadImage}
+    onUpload={(file) => (uploadedImage = file)}
   />
   <DrawingControls
     {tool}
@@ -48,6 +62,7 @@
       {toolColor}
       {toolSize}
       {toolOpacity}
+      image={uploadedImage}
       onReady={() => (isPlaying = true)}
       onWindDirectionChange={(updated) => (windDirection = updated)}
     />

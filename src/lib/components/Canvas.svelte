@@ -20,6 +20,7 @@
   interface Props {
     gpu: GPU;
     isPlaying: boolean;
+    image: File | null;
     tool: Tool;
     toolColor: RGB;
     toolSize: number;
@@ -28,9 +29,10 @@
     onWindDirectionChange: (windDirection: number) => void;
   }
 
-  const {
+  let {
     gpu,
     isPlaying,
+    image,
     tool,
     toolColor,
     toolSize,
@@ -53,6 +55,45 @@
   $effect(() =>
     simulation?.computeBuffers.windDirection.setScalar(windDirection),
   );
+
+  $effect(() => {
+    if (!image || !simulation) {
+      return;
+    }
+
+    const imageElement = new Image();
+    imageElement.src = URL.createObjectURL(image);
+    imageElement.onload = () => {
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = simulation!.gridSize[0];
+      tempCanvas.height = simulation!.gridSize[1];
+
+      const ctx = tempCanvas.getContext("2d")!;
+      ctx.drawImage(imageElement, 0, 0, tempCanvas.width, tempCanvas.height);
+      const imageData = ctx.getImageData(
+        0,
+        0,
+        tempCanvas.width,
+        tempCanvas.height,
+      ).data;
+      const bufferData = new Float32Array(imageData.length);
+      // Reverse pixels, since the image is flipped
+      for (let i = 0; i < imageData.length; i += 4) {
+        const index = i / 4;
+        const x = index % tempCanvas.width;
+        const y = Math.floor(index / tempCanvas.width);
+        const invertedY = tempCanvas.height - y - 1;
+        const invertedIndex = 4 * (invertedY * tempCanvas.width + x);
+        bufferData[i] = imageData[invertedIndex];
+        bufferData[i + 1] = imageData[invertedIndex + 1];
+        bufferData[i + 2] = imageData[invertedIndex + 2];
+        bufferData[i + 3] = imageData[invertedIndex + 3];
+      }
+      simulation!.computeBuffers.colorsA.set(bufferData);
+      simulation!.computeBuffers.colorsB.set(bufferData);
+    };
+    image = null;
+  });
 
   onMount(() => {
     gpu.setupGPUCanvasRendering(canvas);
@@ -173,7 +214,10 @@
 <div>
   <canvas
     id="canvas"
+    data-export-target
     class="fixed top-0 left-0 w-full h-full cursor-none"
+    width={window.innerWidth + "px"}
+    height={window.innerHeight + "px"}
     bind:this={canvas}
     onpointerdown={startDrawing}
     onpointermove={onPointerMove}
