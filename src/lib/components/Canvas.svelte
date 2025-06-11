@@ -75,60 +75,7 @@
     // waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
     // gpu.writeToBuffer(waterSourceHeightBuffer!, waterSourceHeight);
 
-    const encoder = gpu.device.createCommandEncoder();
-    const bindGroup = simulation.memory.createBindGroup(
-      gpu.device,
-      "Simulation Bind Group",
-    );
-
-    if (isPlaying) {
-      const simulationBindGroup = bindGroup;
-      simulation.dispatchComputePass(
-        simulation.computePipelines["presimulation"],
-        encoder,
-        simulationBindGroup,
-      );
-      simulation.dispatchComputePass(
-        simulation.computePipelines["waterSimulation"],
-        encoder,
-        simulationBindGroup,
-      );
-      simulation.dispatchComputePass(
-        simulation.computePipelines["simulation"],
-        encoder,
-        simulationBindGroup,
-      );
-    }
-
-    // TODO: DON'T OVERWRITE EROSION
-    const currentBindGroup = bindGroup;
-    simulation.dispatchComputePass(
-      simulation.computePipelines["drawing"],
-      encoder,
-      currentBindGroup,
-    );
-
-    simulation.step++;
-
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: gpu.context!.getCurrentTexture().createView(),
-          loadOp: "clear",
-          clearValue: { r: 0, g: 0, b: 0.0, a: 1.0 },
-          storeOp: "store",
-        },
-      ],
-    });
-
-    pass.setPipeline(simulation.renderPipeline);
-    pass.setBindGroup(0, bindGroup);
-    pass.setVertexBuffer(0, simulation.vertexBuffer);
-    const vertices = utils.getVerticesForSquare();
-    pass.draw(vertices.length / 2, simulation!.gridCellCount);
-
-    pass.end();
-    gpu.device.queue.submit([encoder.finish()]);
+    simulation.computeAndRender(isPlaying);
   }
 
   let isDrawing = $state(false);

@@ -193,4 +193,61 @@ export class Simulation {
     );
     pass.end();
   }
+
+  computeAndRender(simulate: boolean) {
+    const encoder = this.gpu.device.createCommandEncoder();
+    const bindGroup = this.memory.createBindGroup(
+      this.gpu.device,
+      "Simulation Bind Group",
+    );
+
+    if (simulate) {
+      const simulationBindGroup = bindGroup;
+      this.dispatchComputePass(
+        this.computePipelines.presimulation,
+        encoder,
+        simulationBindGroup,
+      );
+      this.dispatchComputePass(
+        this.computePipelines.waterSimulation,
+        encoder,
+        simulationBindGroup,
+      );
+      this.dispatchComputePass(
+        this.computePipelines.simulation,
+        encoder,
+        simulationBindGroup,
+      );
+    }
+
+    // TODO: DON'T OVERWRITE EROSION
+    const currentBindGroup = bindGroup;
+    this.dispatchComputePass(
+      this.computePipelines["drawing"],
+      encoder,
+      currentBindGroup,
+    );
+
+    this.step++;
+
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.gpu.context!.getCurrentTexture().createView(),
+          loadOp: "clear",
+          clearValue: { r: 0, g: 0, b: 0.0, a: 1.0 },
+          storeOp: "store",
+        },
+      ],
+    });
+
+    pass.setPipeline(this.renderPipeline);
+    pass.setBindGroup(0, bindGroup);
+    pass.setVertexBuffer(0, this.vertexBuffer);
+    const vertices = utils.getVerticesForSquare();
+    pass.draw(vertices.length / 2, this.gridCellCount);
+    pass.end();
+
+    this.gpu.device.queue.submit([encoder.finish()]);
+  }
 }
