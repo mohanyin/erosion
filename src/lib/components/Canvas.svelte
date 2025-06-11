@@ -5,7 +5,7 @@
     CurveInterpolator,
     MAX_SEGMENTS,
   } from "@/lib/services/curve-intepolator";
-  import { type Tool } from "@/lib/services/drawing";
+  import { type Tool, Tools } from "@/lib/services/drawing";
   import {
     Simulation,
     TOOL_LOCATION_BUFFER_SIZE,
@@ -31,10 +31,10 @@
   const {
     gpu,
     isPlaying,
-    tool: rawTool,
-    toolColor: rawToolColor,
-    toolSize: rawToolSize,
-    toolOpacity: rawToolOpacity,
+    tool,
+    toolColor,
+    toolSize,
+    toolOpacity,
     onReady,
     onWindDirectionChange,
   }: Props = $props();
@@ -43,14 +43,12 @@
 
   let simulation: Simulation | null = $state(null);
 
-  $effect(() => simulation?.computeBuffers.tool.setScalar(rawTool));
+  $effect(() => simulation?.computeBuffers.tool.setScalar(tool));
   $effect(() => {
-    simulation?.computeBuffers.toolColor.set(new Float32Array(rawToolColor));
+    simulation?.computeBuffers.toolColor.set(new Float32Array(toolColor));
   });
-  $effect(() => simulation?.computeBuffers.toolSize.setScalar(rawToolSize));
-  $effect(() =>
-    simulation?.computeBuffers.toolOpacity.setScalar(rawToolOpacity),
-  );
+  $effect(() => simulation?.computeBuffers.toolSize.setScalar(toolSize));
+  $effect(() => simulation?.computeBuffers.toolOpacity.setScalar(toolOpacity));
   let windDirection = $state(Math.random() * 2 * Math.PI);
   $effect(() =>
     simulation?.computeBuffers.windDirection.setScalar(windDirection),
@@ -82,6 +80,19 @@
 
   let shouldPlay = $derived(isDrawing || isPlaying);
   let animationFrameId: number | null = $state(null);
+
+  let cursorLocation = $state<[number, number] | null>(null);
+  let cursorStyle = $derived(
+    cursorLocation
+      ? `
+        left: ${cursorLocation[0]}px; 
+        top: ${cursorLocation[1]}px; 
+        width: ${toolSize * window.devicePixelRatio}px; 
+        height: ${toolSize * window.devicePixelRatio}px;
+        border-style: ${tool === Tools.WindErosion ? "dashed" : "solid"};
+      `
+      : "",
+  );
 
   function play() {
     animationFrameId = requestAnimationFrame(() => {
@@ -117,6 +128,11 @@
     }
   }
 
+  function onPointerMove(event: PointerEvent) {
+    cursorLocation = [event.clientX, event.clientY];
+    setToolLocation(event);
+  }
+
   function setToolLocation(event: MouseEvent) {
     if (!canvas || !isDrawing || !simulation) {
       return;
@@ -147,18 +163,26 @@
       new Float32Array(TOOL_LOCATION_BUFFER_SIZE).fill(-1.0),
     );
   }
+
+  function onPointerLeave() {
+    cursorLocation = null;
+    cancelDrawing();
+  }
 </script>
 
-<canvas
-  id="canvas"
-  class="canvas"
-  bind:this={canvas}
-  onpointerdown={startDrawing}
-  onpointermove={setToolLocation}
-  onpointerup={cancelDrawing}
-  onpointerenter={onPointerEnter}
-  onpointerleave={cancelDrawing}
-></canvas>
+<div>
+  <canvas
+    id="canvas"
+    class="canvas"
+    bind:this={canvas}
+    onpointerdown={startDrawing}
+    onpointermove={onPointerMove}
+    onpointerup={cancelDrawing}
+    onpointerenter={onPointerEnter}
+    onpointerleave={onPointerLeave}
+  ></canvas>
+  <div class="cursor" style={cursorStyle}></div>
+</div>
 
 <style lang="scss">
   .canvas {
@@ -167,5 +191,18 @@
     left: 0;
     width: 100vw;
     height: 100vh;
+    cursor: none;
+  }
+
+  .cursor {
+    pointer-events: none;
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    top: 0;
+    left: 0;
+    border-radius: 50%;
+    border: 1px solid black;
+    transform: translate(-50%, -50%);
   }
 </style>
