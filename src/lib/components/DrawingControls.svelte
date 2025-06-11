@@ -319,7 +319,7 @@
   </ExpandingButton>
 
   <div
-    class="rounded-full w-8 h-8 bg-gray-300"
+    class="rounded-full w-8 h-8 bg-gray-300 self-end"
     style={`background-color: rgb(${toolColor[0]}, ${toolColor[1]}, ${toolColor[2]})`}
   >
     <span class="sr-only">
