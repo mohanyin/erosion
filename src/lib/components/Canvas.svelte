@@ -6,23 +6,16 @@
     MAX_SEGMENTS,
   } from "@/lib/services/curve-intepolator";
   import { type Tool } from "@/lib/services/drawing";
-  import GPUMemory from "@/lib/services/gpu-memory";
-  import ShaderAnalyzer from "@/lib/services/shader-analyzer";
-  import { ShaderModuleBuilder } from "@/lib/services/shader-module";
-  import { Simulation, WORKGROUP_SIZE } from "@/lib/services/simulation.svelte";
+  import {
+    Simulation,
+    TOOL_LOCATION_BUFFER_SIZE,
+  } from "@/lib/services/simulation.svelte";
   import utils from "@/lib/services/utils";
-  import { Bindings, GPU } from "@/lib/services/web-gpu";
-  import drawingShader from "@/lib/shaders/compute/drawing.wgsl?raw";
-  import preSimulationShader from "@/lib/shaders/compute/pre-simulation.wgsl?raw";
-  import simulationShader from "@/lib/shaders/compute/simulation.wgsl?raw";
-  import shaderUtils from "@/lib/shaders/compute/utils.wgsl?raw";
-  import waterSimulationShader from "@/lib/shaders/compute/water-simulation.wgsl?raw";
-  import drawShader from "@/lib/shaders/draw.wgsl?raw";
+  import { GPU } from "@/lib/services/web-gpu";
 
   type RGB = [number, number, number];
 
   const WIND_DIRECTION_VARIABILITY = 0.1;
-  const TOOL_LOCATION_BUFFER_SIZE = 4 * (MAX_SEGMENTS + 1);
 
   interface Props {
     gpu: GPU;
@@ -48,178 +41,42 @@
 
   let canvas: HTMLCanvasElement;
 
-  const simulation = new Simulation(gpu);
-  let renderPipeline: GPURenderPipeline | null = $state(null);
-  let computePipelines: Record<string, GPUComputePipeline> | null =
-    $state(null);
+  let simulation: Simulation | null = $state(null);
 
-  const shaderModuleBuilder = new ShaderModuleBuilder(shaderUtils, {
-    WORKGROUP_SIZE,
-    ...Bindings,
+  $effect(() => simulation?.computeBuffers.tool.setScalar(rawTool));
+  $effect(() => {
+    simulation?.computeBuffers.toolColor.set(new Float32Array(rawToolColor));
   });
-  const preSimulationShaderModule = shaderModuleBuilder.build(
-    preSimulationShader,
-    gpu.device,
+  $effect(() => simulation?.computeBuffers.toolSize.setScalar(rawToolSize));
+  $effect(() =>
+    simulation?.computeBuffers.toolOpacity.setScalar(rawToolOpacity),
   );
-  const simulationShaderModule = shaderModuleBuilder.build(
-    simulationShader,
-    gpu.device,
-  );
-  const waterSimulationShaderModule = shaderModuleBuilder.build(
-    waterSimulationShader,
-    gpu.device,
-  );
-  const drawingShaderModule = shaderModuleBuilder.build(
-    drawingShader,
-    gpu.device,
-  );
-  const drawShaderModule = shaderModuleBuilder.build(drawShader, gpu.device);
-
-  const shaderAnalyzer = new ShaderAnalyzer({
-    preSimulation: preSimulationShaderModule,
-    simulation: simulationShaderModule,
-    waterSimulation: waterSimulationShaderModule,
-    drawing: drawingShaderModule,
-    draw: drawShaderModule,
-  });
-  const gpuMemory = new GPUMemory(shaderAnalyzer, gpu.device);
-
-  let step = 0;
-
-  const windDirection = gpuMemory.createBuffer<number>(
-    Bindings.WindDirection,
-    new Float32Array([Math.random() * 2 * Math.PI]),
-  );
-
-  let waterSourceHeight = $state(new Float32Array([0.01]));
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  let waterSourceHeightBuffer: GPUBuffer | null = null;
-  let waterSourceLocation = $state(new Int32Array([-1, -1]));
-  const vertices = utils.getVerticesForSquare();
-
-  /**
-   * BUFFERS
-   */
-  const vertexBuffer: GPUBuffer = gpuMemory.createVertexBuffer({
-    data: vertices,
-    label: "Cell vertices",
-  });
-
-  const tool = gpuMemory.createBuffer<number>(
-    Bindings.Tool,
-    new Int32Array([rawTool]),
-  );
-  $effect(() => tool.setScalar(rawTool));
-
-  const toolLocation = gpuMemory.createBuffer<Float32Array>(
-    Bindings.ToolLocation,
-    new Float32Array(TOOL_LOCATION_BUFFER_SIZE).fill(-1.0),
-  );
-
-  const toolColor = gpuMemory.createBuffer<Float32Array>(
-    Bindings.ToolColor,
-    new Float32Array(rawToolColor),
-  );
-  $effect(() => toolColor.set(new Float32Array(rawToolColor)));
-
-  const toolSize = gpuMemory.createBuffer<Float32Array>(
-    Bindings.ToolSize,
-    new Float32Array([rawToolSize]),
-  );
-  $effect(() => toolSize.setScalar(rawToolSize));
-
-  const toolOpacity = gpuMemory.createBuffer<Float32Array>(
-    Bindings.ToolOpacity,
-    new Float32Array([rawToolOpacity]),
-  );
-  $effect(() => toolOpacity.setScalar(rawToolOpacity));
-
-  gpuMemory.createBuffer(
-    Bindings.GridSize,
-    new Float32Array(simulation.gridSize),
-  );
-
-  gpuMemory.createBuffer(Bindings.WaterSourceLocation, waterSourceLocation);
-  gpuMemory.createBuffer(Bindings.WaterSourceHeight, waterSourceHeight);
-
-  const waterSourceIndex =
-    waterSourceLocation[0] + waterSourceLocation[1] * simulation.gridSize[0];
-  const waterStateArray = new Int32Array(simulation.gridCellCount);
-  waterStateArray[waterSourceIndex] = 1;
-  gpuMemory.createBuffer(
-    () => (step % 2 === 0 ? Bindings.WaterStateA : Bindings.WaterStateB),
-    waterStateArray,
-  );
-  gpuMemory.createBuffer(
-    () => (step % 2 === 0 ? Bindings.WaterStateB : Bindings.WaterStateA),
-    waterStateArray,
-  );
-  gpuMemory.createBuffer(
-    () => (step % 2 === 0 ? Bindings.ColorsA : Bindings.ColorsB),
-    new Float32Array(simulation.gridCellCount * 4).fill(255.0),
-  );
-  gpuMemory.createBuffer(
-    () => (step % 2 === 0 ? Bindings.ColorsB : Bindings.ColorsA),
-    new Float32Array(simulation.gridCellCount * 4).fill(255.0),
-  );
-  gpuMemory.createBuffer(
-    Bindings.MovedMaterial,
-    new Float32Array(simulation.gridCellCount * 4).fill(-1.0),
+  let windDirection = $state(Math.random() * 2 * Math.PI);
+  $effect(() =>
+    simulation?.computeBuffers.windDirection.setScalar(windDirection),
   );
 
   onMount(() => {
-    setupSimulation();
+    gpu.setupGPUCanvasRendering(canvas);
+    simulation = new Simulation(gpu);
     onReady();
   });
 
-  function setupSimulation() {
-    gpu.setupGPUCanvasRendering(canvas);
-
-    const { render, compute } = simulation.finalizePipelines({
-      label: "Simulation",
-      compute: {
-        preSimulation: preSimulationShaderModule.getComputeProgrammableStage(),
-        simulation: simulationShaderModule.getComputeProgrammableStage(),
-        waterSimulation:
-          waterSimulationShaderModule.getComputeProgrammableStage(),
-        drawing: drawingShaderModule.getComputeProgrammableStage(),
-      },
-      vertex: drawShaderModule.getVertexProgrammableStage({
-        buffers: gpuMemory.getVertexBufferLayout(),
-      }),
-      fragment: drawShaderModule.getFragmentProgrammableStage({
-        targets: [{ format: gpu.format }],
-      }),
-      bindGroupLayout: gpuMemory.createBindGroupLayout(
-        gpu.device,
-        "Simulation Bind Group",
-      ),
-    });
-    renderPipeline = render;
-    computePipelines = compute;
-
-    return gpu;
-  }
-
   function updateGrid() {
-    if (!renderPipeline) {
-      throw new Error("GPU not initialized");
+    if (!simulation) {
+      return;
     }
 
-    const updatedWindDirection =
-      utils.randomlyNudgeValue(
-        windDirection.scalar!,
-        WIND_DIRECTION_VARIABILITY,
-      ) %
+    windDirection =
+      utils.randomlyNudgeValue(windDirection, WIND_DIRECTION_VARIABILITY) %
       (2 * Math.PI);
-    windDirection.setScalar(updatedWindDirection);
-    onWindDirectionChange(updatedWindDirection);
+    onWindDirectionChange(windDirection);
 
     // waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
     // gpu.writeToBuffer(waterSourceHeightBuffer!, waterSourceHeight);
 
     const encoder = gpu.device.createCommandEncoder();
-    const bindGroup = gpuMemory.createBindGroup(
+    const bindGroup = simulation.memory.createBindGroup(
       gpu.device,
       "Simulation Bind Group",
     );
@@ -227,17 +84,17 @@
     if (isPlaying) {
       const simulationBindGroup = bindGroup;
       simulation.dispatchComputePass(
-        computePipelines!["preSimulation"],
+        simulation.computePipelines["presimulation"],
         encoder,
         simulationBindGroup,
       );
       simulation.dispatchComputePass(
-        computePipelines!["waterSimulation"],
+        simulation.computePipelines["waterSimulation"],
         encoder,
         simulationBindGroup,
       );
       simulation.dispatchComputePass(
-        computePipelines!["simulation"],
+        simulation.computePipelines["simulation"],
         encoder,
         simulationBindGroup,
       );
@@ -246,12 +103,12 @@
     // TODO: DON'T OVERWRITE EROSION
     const currentBindGroup = bindGroup;
     simulation.dispatchComputePass(
-      computePipelines!["drawing"],
+      simulation.computePipelines["drawing"],
       encoder,
       currentBindGroup,
     );
 
-    step++;
+    simulation.step++;
 
     const pass = encoder.beginRenderPass({
       colorAttachments: [
@@ -264,9 +121,10 @@
       ],
     });
 
-    pass.setPipeline(renderPipeline);
+    pass.setPipeline(simulation.renderPipeline);
     pass.setBindGroup(0, bindGroup);
-    pass.setVertexBuffer(0, vertexBuffer);
+    pass.setVertexBuffer(0, simulation.vertexBuffer);
+    const vertices = utils.getVerticesForSquare();
     pass.draw(vertices.length / 2, simulation!.gridCellCount);
 
     pass.end();
@@ -313,7 +171,7 @@
   }
 
   function setToolLocation(event: MouseEvent) {
-    if (!canvas || !isDrawing) {
+    if (!canvas || !isDrawing || !simulation) {
       return;
     }
 
@@ -332,13 +190,15 @@
       ...newPoints.flat(),
       ...new Array(4 * (MAX_SEGMENTS + 1 - newPoints.length)).fill(-1.0),
     ];
-    toolLocation.set(new Float32Array(locations));
+    simulation.computeBuffers.toolLocation.set(new Float32Array(locations));
   }
 
   function cancelDrawing() {
     isDrawing = false;
     curveInterpolator.reset();
-    toolLocation.set(new Float32Array(TOOL_LOCATION_BUFFER_SIZE).fill(-1.0));
+    simulation?.computeBuffers.toolLocation.set(
+      new Float32Array(TOOL_LOCATION_BUFFER_SIZE).fill(-1.0),
+    );
   }
 </script>
 

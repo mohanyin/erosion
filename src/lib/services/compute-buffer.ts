@@ -9,7 +9,7 @@ export class ComputeBuffer<T extends BufferData> {
   private options: GPUBufferOptions;
 
   data: GPUAllowSharedBufferSource = new Float32Array([]);
-  buffer: GPUBuffer | null = $state(null);
+  buffer: GPUBuffer | null = null;
 
   constructor(options: GPUBufferOptions, device: GPUDevice) {
     this.options = options;

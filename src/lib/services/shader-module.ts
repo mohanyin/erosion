@@ -40,7 +40,6 @@ export default class ShaderModule {
     private readonly gpuDevice: GPUDevice,
   ) {
     this.reflect = new WgslReflect(code);
-    console.log(this.reflect);
     this.module = this.gpuDevice.createShaderModule({ code: this.code });
   }
 

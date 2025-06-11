@@ -16,6 +16,7 @@
     "isolatedModules": true,
     "moduleDetection": "force",
     "types": ["@webgpu/types"],
+    "composite": true,
     "paths": {
       "@/*": ["./src/*"]
     }
