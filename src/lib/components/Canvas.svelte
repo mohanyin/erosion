@@ -15,7 +15,7 @@
 
   type RGB = [number, number, number];
 
-  const WIND_DIRECTION_VARIABILITY = 0.03;
+  const WIND_DIRECTION_VARIABILITY = 0.01;
   const COLOR_PARAMS_VARIABILITY = 0.01;
 
   interface Props {

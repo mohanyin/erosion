@@ -15,9 +15,9 @@
   let uploadedImage = $state<File | null>(null);
 
   let windDirection = $state(0);
-  let tool = $state<Tool>(Tools.Pencil);
-  let toolColor = $state<RGB>([50, 20, 30]);
-  let toolSize = $state(10);
+  let tool = $state<Tool>(Tools.Pen);
+  let toolColor = $state<RGB>([25, 80, 211]);
+  let toolSize = $state(20);
   let toolOpacity = $state(1);
 
   onMount(async () => {
