@@ -15,7 +15,8 @@
 
   type RGB = [number, number, number];
 
-  const WIND_DIRECTION_VARIABILITY = 0.1;
+  const WIND_DIRECTION_VARIABILITY = 0.03;
+  const COLOR_PARAMS_VARIABILITY = 0.01;
 
   interface Props {
     gpu: GPU;
@@ -55,6 +56,15 @@
   $effect(() =>
     simulation?.computeBuffers.windDirection.setScalar(windDirection),
   );
+
+  let colorParams = $state(
+    new Float32Array([
+      utils.pickRandomFloat(0.5, 1.5),
+      utils.pickRandomFloat(0.5, 1.5),
+      utils.pickRandomFloat(0.5, 1.5),
+    ]),
+  );
+  $effect(() => simulation?.computeBuffers.colorParams.set(colorParams));
 
   $effect(() => {
     if (!image || !simulation) {
@@ -111,6 +121,23 @@
       (2 * Math.PI);
     onWindDirectionChange(windDirection);
 
+    colorParams = new Float32Array([
+      utils.clamp(
+        utils.randomlyNudgeValue(colorParams[0], COLOR_PARAMS_VARIABILITY),
+        0.5,
+        1.5,
+      ),
+      utils.clamp(
+        utils.randomlyNudgeValue(colorParams[1], COLOR_PARAMS_VARIABILITY),
+        0.5,
+        1.5,
+      ),
+      utils.clamp(
+        utils.randomlyNudgeValue(colorParams[2], COLOR_PARAMS_VARIABILITY),
+        0.5,
+        1.5,
+      ),
+    ]);
     // waterSourceHeight = new Float32Array([waterSourceHeight[0] - 0.2]);
     // gpu.writeToBuffer(waterSourceHeightBuffer!, waterSourceHeight);
 

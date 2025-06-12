@@ -137,6 +137,10 @@ export class Simulation {
         Bindings.MovedMaterial,
         new Float32Array(this.gridCellCount * 4).fill(-1.0),
       ),
+      colorParams: this.memory.createBuffer<number>(
+        Bindings.ColorParams,
+        new Float32Array([0, 0, 0]),
+      ),
     };
   }
 

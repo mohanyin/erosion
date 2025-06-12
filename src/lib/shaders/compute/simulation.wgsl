@@ -1,5 +1,6 @@
 @group(0) @binding({{GridSize}}) var<uniform> grid: vec2f;
 @group(0) @binding({{WindDirection}}) var<uniform> windDirection: f32;
+@group(0) @binding({{ColorParams}}) var<uniform> colorParams: vec3f;
 
 @group(0) @binding({{WaterSourceHeight}}) var<uniform> waterSourceHeight: f32;
 @group(0) @binding({{WaterStateA}}) var<storage> waterStateIn: array<i32>;
@@ -26,7 +27,7 @@ fn getWindMovedMaterial(x: i32, y: i32) -> vec3f {
     return movedMaterial[index];
   }
 
-  let color = colorsIn[cellIndex(x, y)];
+  let color = colorsIn[index];
   let darkness = calculateDarkness(color);
 
   let source = getSourceFromWind(windDirection, 1.0);
@@ -41,12 +42,12 @@ fn getWindMovedMaterial(x: i32, y: i32) -> vec3f {
   let destIndex = cellIndex(x - source.x, y - source.y);
   let destDarkness = calculateDarkness(colorsIn[destIndex]);
 
-  let localMaximaFactor = min(darkness - sourceDarkness, darkness / 75 + 0.005);
+  let localMaximaFactor = max(darkness - sourceDarkness, 0.01);
   let invertedColor = vec3f(255.0) - color;
   let randomFactors = vec3f(
-    0.9 + 0.2 * darkness,
-    0.6 + 0.4 * darkness,
-    1.2 - 0.4 * darkness
+    colorParams[0] + (1 - colorParams[0]) * darkness * 2,
+    colorParams[1] + (1 - colorParams[1]) * darkness * 2,
+    colorParams[2] + (1 - colorParams[2]) * darkness * 2
   );
   let moved = clamp(
     darkness * localMaximaFactor * invertedColor * randomFactors, 

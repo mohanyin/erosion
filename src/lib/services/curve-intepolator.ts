@@ -4,7 +4,7 @@ const TENSION = 0.0;
 const ALPHA = 1.0;
 
 const POINT_DENSITY = 0.4;
-export const MAX_SEGMENTS = 20;
+export const MAX_SEGMENTS = 50;
 
 type Point = number[];
 

@@ -1,12 +1,20 @@
 export class Utils {
+  clamp(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(value, max));
+  }
+
+  pickRandomFloat(min: number, max: number) {
+    return Math.random() * (max - min) + min;
+  }
+
   /** Returns a random direction in radians */
   pickRandomDirection() {
-    return Math.random() * 2 * Math.PI;
+    return this.pickRandomFloat(0, 2 * Math.PI);
   }
 
   /** Returns a slightly different value */
   randomlyNudgeValue(value: number, variability: number) {
-    return value + (Math.random() - 0.5) * variability;
+    return value + this.pickRandomFloat(-variability, variability);
   }
 
   convertRadiansToVector(radians: number) {
