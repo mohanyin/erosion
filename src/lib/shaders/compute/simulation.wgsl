@@ -34,7 +34,7 @@ fn getWindMovedMaterial(x: i32, y: i32) -> vec3f {
   let sourceIndex = cellIndex(x + source.x, y + source.y);
   let sourceDarkness = calculateDarkness(colorsIn[sourceIndex]);
 
-  if (sourceDarkness >= darkness) {
+  if (sourceDarkness > darkness) {
     movedMaterial[index] = vec3f(0.0);
     return movedMaterial[index];
   }
